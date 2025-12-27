@@ -1,0 +1,145 @@
+# =============================================================================
+# Rust / Cargo
+# =============================================================================
+/target/
+Cargo.lock
+**/*.rs.bk
+
+# =============================================================================
+# Python
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+.env/
+
+# =============================================================================
+# IDE / Editors
+# =============================================================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains (IntelliJ, PyCharm, CLion, RustRover)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Cursor
+.cursor/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# ML Models & Large Files
+# =============================================================================
+# LTX-Video model weights (large files)
+/ltxv-2b-0.9.8-distilled/
+*.safetensors
+*.bin
+!Cargo.lock
+*.gguf
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
+# Hugging Face cache
+.cache/
+
+# =============================================================================
+# Generated Output
+# =============================================================================
+/output/
+/scripts/output/
+
+# Debug data
+*.npy
+*.npz
+
+# Generated images/videos
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.webm
+*.avi
+
+# =============================================================================
+# Temporary / System Files
+# =============================================================================
+# Logs
+*.log
+logs/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# =============================================================================
+# Testing
+# =============================================================================
+/tp/
+
+# Test data files (binary)
+test_*.npy
+test_*.bin
+
+# Coverage
+*.gcov
+*.gcda
+*.gcno
+tarpaulin-report.html
+coverage/
+
+# =============================================================================
+# Documentation
+# =============================================================================
+/docs/_build/
+*.pdf

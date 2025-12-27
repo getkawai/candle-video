@@ -1,0 +1,70 @@
+[package]
+name = "candle-video"
+version = "0.1.0"
+edition = "2024"
+authors = ["FerrisMind"]
+description = "LTX-Video integration for Candle framework"
+license = "Apache-2.0"
+repository = "https://github.com/FerrisMind/candle-video"
+
+[dependencies]
+candle-core = { version = "=0.9.2-alpha.2", features = ["cuda"] }
+candle-nn = "=0.9.2-alpha.2"
+candle-transformers = "=0.9.2-alpha.2"
+safetensors = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+tokenizers = "0.22"
+thiserror = "2.0"
+hf-hub = "0.4"
+clap = { version = "4.0", features = ["derive"] }
+image = "0.25"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+glob = "0.3"
+
+[features]
+default = []
+
+[dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
+tempfile = "3.0"
+bytemuck = "1.0"
+
+[[bin]]
+name = "ltx-video"
+path = "src/bin/ltx_video.rs"
+
+[[bin]]
+name = "check-t5-shapes"
+path = "src/bin/check_t5_shapes.rs"
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[[test]]
+name = "loader_tests"
+path = "tests/loader_tests.rs"
+
+[[test]]
+name = "text_encoder_tests"
+path = "tests/text_encoder_tests.rs"
+
+[[test]]
+name = "dit_tests"
+path = "tests/dit_tests.rs"
+
+
+[[test]]
+name = "scheduler_tests"
+path = "tests/scheduler_tests.rs"
+
+[[test]]
+name = "patch_embedding_tests"
+path = "tests/patch_embedding_tests.rs"
+
+[[test]]
+name = "pipeline_tests"
+path = "tests/pipeline_tests.rs"

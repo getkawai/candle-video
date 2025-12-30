@@ -430,10 +430,13 @@ impl TransformerSpatioTemporalModel {
         let mut hidden_states = self.proj_in.forward(&hidden_states)?;
 
         // Create time position embedding for each frame
-        // diffusers: time_proj(arange(num_frames)) -> [T, C] in F32, then cast to hidden_states dtype
-        let num_frames_emb = Tensor::arange(0f32, num_frames as f32, hidden_states.device())?
-            .repeat(batch_size)?  // [B*T]
-            .reshape((batch_size * num_frames,))?;
+        // diffusers: arange(num_frames).repeat(batch_size, 1).reshape(-1)
+        // This gives [0,1,2,...,T-1, 0,1,2,...,T-1, ...] for each batch
+        let frame_indices = Tensor::arange(0f32, num_frames as f32, hidden_states.device())?;  // [T]
+        let num_frames_emb = frame_indices
+            .unsqueeze(0)?  // [1, T]
+            .broadcast_as((batch_size, num_frames))?  // [B, T]
+            .reshape((batch_size * num_frames,))?;  // [B*T]
         
         // get_timestep_embedding always returns F32, cast to match hidden_states
         let t_emb = get_timestep_embedding(&num_frames_emb, self.in_channels)?

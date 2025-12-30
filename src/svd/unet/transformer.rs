@@ -89,51 +89,35 @@ impl Attention {
         let k = self.to_k.forward(context)?;
         let v = self.to_v.forward(context)?;
 
+        // Reshape to multi-head format
         let q = q
             .reshape((batch, seq_len, self.heads, self.head_dim))?
             .transpose(1, 2)?
-            .contiguous()?;
+            .contiguous()?;  // [B, H, S_q, D]
         let k = k
             .reshape((batch, (), self.heads, self.head_dim))?
             .transpose(1, 2)?
-            .transpose(2, 3)? // [B, H, D, S_k] for matmul
-            .contiguous()?;
+            .contiguous()?;  // [B, H, S_k, D]
         let v = v
             .reshape((batch, (), self.heads, self.head_dim))?
             .transpose(1, 2)?
-            .contiguous()?;
+            .contiguous()?;  // [B, H, S_k, D]
 
-        // Sliced attention calculation to avoid OOM
-        // Split q into chunks along sequence dimension
-        // Chunk 32 approx 330MB peak overhead for attention scores in F32 (safest) (Still OOM on some 3060s)
-        // Chunk 2 approx 20MB -> Should definitely fit even with fragmentation
-        let chunk_size = 2;
-        let mut chunks = Vec::new();
+        // Attention: Q @ K^T * scale -> softmax -> @ V
+        // Single matmul like diffusers (no chunking for speed)
+        let attn_scores = (q.matmul(&k.transpose(2, 3)?)? * self.scale)?;
+        
+        // upcast_softmax: softmax in F32 for numerical stability
+        let attn_probs = candle_nn::ops::softmax_last_dim(&attn_scores.to_dtype(DType::F32)?)?
+            .to_dtype(attn_scores.dtype())?;
 
-        for i in (0..seq_len).step_by(chunk_size) {
-            let end = std::cmp::min(i + chunk_size, seq_len);
-            let q_chunk = q.narrow(2, i, end - i)?; // [B, H, Chunk, D]
+        let out = attn_probs.matmul(&v)?;
 
-            // Compute attention in F32 for numerical stability in FP16 mode
-            // Cast Q and K to F32 before matmul to prevent overflow
-            let q_f32 = q_chunk.to_dtype(DType::F32)?;
-            let k_f32 = k.to_dtype(DType::F32)?;
-            let attn_weights = (q_f32.matmul(&k_f32)? * self.scale)?;
-            let attn_weights = candle_nn::ops::softmax_last_dim(&attn_weights)?;
-            
-            // Cast V to F32 for matmul, then back to original dtype
-            let v_f32 = v.to_dtype(DType::F32)?;
-            let out_chunk = attn_weights.matmul(&v_f32)?.to_dtype(q.dtype())?;
-            chunks.push(out_chunk);
-        }
-
-        let out = Tensor::cat(&chunks, 2)?; // [B, H, S, D]
-
+        // Reshape back: [B, H, S, D] -> [B, S, H*D]
         let out = out
             .transpose(1, 2)?
             .contiguous()?
-            .reshape((batch, seq_len, ()))?
-            .to_dtype(hidden_states.dtype())?;
+            .reshape((batch, seq_len, ()))?;
         self.to_out.forward(&out)
     }
 }

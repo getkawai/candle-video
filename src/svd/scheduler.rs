@@ -200,38 +200,47 @@ impl EulerDiscreteScheduler {
         let sigma = self.sigmas[timestep_idx];
         let sigma_next = self.sigmas[timestep_idx + 1];
 
+        // Upcast to F32 for precision (diffusers does this)
+        let original_dtype = sample.dtype();
+        let sample = sample.to_dtype(candle_core::DType::F32)?;
+        let model_output = model_output.to_dtype(candle_core::DType::F32)?;
+
         // For v-prediction: x0 = sigma * sample - (sigma^2 + 1)^0.5 * model_output
         // Then: noise = (sample - x0) / sigma
         // For epsilon prediction: noise = model_output directly
         let (pred_original_sample, derivative) = match self.config.prediction_type.as_str() {
             "v_prediction" => {
-                // x0 = sample * c_out + model_output * c_skip
-                // where c_out = -sigma / sqrt(sigma^2 + 1), c_skip = 1 / sqrt(sigma^2 + 1)
-                let sigma_sq_plus_1_sqrt = (sigma.powi(2) + 1.0).sqrt();
-                let c_skip = 1.0 / sigma_sq_plus_1_sqrt;
+                // diffusers: pred_original_sample = model_output * (-sigma / sqrt(sigma²+1)) + sample / (sigma²+1)
+                // Note: c_out has sqrt, but c_skip does NOT have sqrt - this is critical!
+                let sigma_sq_plus_1 = sigma.powi(2) + 1.0;
+                let sigma_sq_plus_1_sqrt = sigma_sq_plus_1.sqrt();
                 let c_out = -sigma / sigma_sq_plus_1_sqrt;
+                let c_skip = 1.0 / sigma_sq_plus_1;  // NOT sqrt!
 
-                let pred_x0 = (sample * c_skip)?.add(&(model_output * c_out)?)?;
+                let pred_x0 = (&model_output * c_out)?.add(&(&sample * c_skip)?)?;
                 // derivative (dx/dt) = (sample - pred_x0) / sigma
-                let deriv = ((sample - &pred_x0)? / sigma)?;
+                let deriv = ((&sample - &pred_x0)? / sigma)?;
                 (Some(pred_x0), deriv)
             }
             "epsilon" => {
                 // pred_x0 = sample - sigma * model_output
-                let pred_x0 = (sample - &(model_output * sigma)?)?;
+                let pred_x0 = (&sample - &(&model_output * sigma)?)?;
                 let deriv = model_output.clone();
                 (Some(pred_x0), deriv)
             }
             _ => {
                 // sample prediction
-                let deriv = ((sample - model_output)? / sigma)?;
+                let deriv = ((&sample - &model_output)? / sigma)?;
                 (Some(model_output.clone()), deriv)
             }
         };
 
         // Euler step: x_{t-1} = x_t + (sigma_next - sigma) * derivative
         let dt = sigma_next - sigma;
-        let prev_sample = (sample + &(derivative * dt)?)?;
+        let prev_sample = (&sample + &(derivative * dt)?)?;
+
+        // Cast back to original dtype
+        let prev_sample = prev_sample.to_dtype(original_dtype)?;
 
         self.step_index = Some(timestep_idx + 1);
 

@@ -316,10 +316,35 @@ impl UpBlockSpatioTemporal {
         num_frames: usize,
     ) -> Result<Tensor> {
         let mut h = x.clone();
-        for resnet in self.resnets.iter() {
-            let res_state = res_hidden_states.pop().expect("Not enough skip connections");
+        for (i, resnet) in self.resnets.iter().enumerate() {
+            let res_state = res_hidden_states
+                .pop()
+                .expect("Not enough skip connections");
+            
+            // DEBUG: Check skip connection before cat
+            if std::env::var("DEBUG_UNET").is_ok() {
+                if let Ok(f) = res_state.flatten_all().and_then(|f| f.to_dtype(candle_core::DType::F32)) {
+                    if let Ok(v) = f.to_vec1::<f32>() {
+                        if v.iter().any(|x| x.is_nan() || x.is_infinite()) {
+                            println!("      [UP_BLOCK] res_state[{}] has NaN/Inf!", i);
+                        }
+                    }
+                }
+            }
+            
             h = Tensor::cat(&[&h, &res_state], 1)?;
             h = resnet.forward(&h, temb, image_only_indicator, num_frames)?;
+            
+            // DEBUG: Check after resnet
+            if std::env::var("DEBUG_UNET").is_ok() {
+                if let Ok(f) = h.flatten_all().and_then(|f| f.to_dtype(candle_core::DType::F32)) {
+                    if let Ok(v) = f.to_vec1::<f32>() {
+                        if v.iter().any(|x| x.is_nan() || x.is_infinite()) {
+                            println!("      [UP_BLOCK] after resnet[{}] has NaN/Inf!", i);
+                        }
+                    }
+                }
+            }
         }
         if let Some(up) = &self.upsamplers {
             h = up.forward(&h)?;
@@ -390,7 +415,9 @@ impl CrossAttnUpBlockSpatioTemporal {
     ) -> Result<Tensor> {
         let mut h = x.clone();
         for (resnet, attn) in self.resnets.iter().zip(&self.attentions) {
-            let res_state = res_hidden_states.pop().expect("Not enough skip connections");
+            let res_state = res_hidden_states
+                .pop()
+                .expect("Not enough skip connections");
             h = Tensor::cat(&[&h, &res_state], 1)?;
             h = resnet.forward(&h, temb, image_only_indicator, num_frames)?;
             h = attn.forward(&h, encoder_hidden_states, num_frames)?;

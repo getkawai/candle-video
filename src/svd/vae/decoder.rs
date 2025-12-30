@@ -193,8 +193,12 @@ impl Conv3d {
                 out.permute((0, 3, 4, 1, 2))
             }
         } else {
-            // For complex kernels, identity fallback
-            Ok(x)
+            // Only (kt, 1, 1) kernels are supported via conv1d optimization
+            panic!(
+                "Conv3d only supports (kt, 1, 1) kernels, got ({}, {}, {}). \
+                 Full 3D convolution not implemented.",
+                self.kernel_size.0, kh, kw
+            );
         }
     }
 }
@@ -468,7 +472,10 @@ impl MidBlockTemporalDecoder {
         // diffusers has 1 attention block applied after first resnet
         attentions.push(AttentionBlock::new(vb.pp("attentions").pp("0"), channels)?);
 
-        Ok(Self { resnets, attentions })
+        Ok(Self {
+            resnets,
+            attentions,
+        })
     }
 
     fn forward(

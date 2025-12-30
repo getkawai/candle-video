@@ -1,4 +1,4 @@
-//! UNet Spatio-Temporal Condition Model for SVD
+ //! UNet Spatio-Temporal Condition Model for SVD
 //!
 //! Main UNet architecture for Stable Video Diffusion.
 
@@ -10,6 +10,23 @@ use super::blocks::{
     UNetMidBlockSpatioTemporal, UpBlockSpatioTemporal,
 };
 use crate::svd::config::SvdUnetConfig;
+
+/// Debug helper: check tensor for NaN/Inf and print if found
+fn debug_check_tensor(name: &str, tensor: &Tensor) {
+    if std::env::var("DEBUG_UNET").is_ok() {
+        if let Ok(f32_tensor) = tensor.to_dtype(DType::F32) {
+            if let Ok(flat) = f32_tensor.flatten_all() {
+                let has_nan = flat.to_vec1::<f32>().map(|v| v.iter().any(|x| x.is_nan())).unwrap_or(false);
+                let has_inf = flat.to_vec1::<f32>().map(|v| v.iter().any(|x| x.is_infinite())).unwrap_or(false);
+                let min = flat.min(0).ok().and_then(|t| t.to_scalar::<f32>().ok());
+                let max = flat.max(0).ok().and_then(|t| t.to_scalar::<f32>().ok());
+                if has_nan || has_inf {
+                    println!("    [UNET] {} has NaN={}, Inf={}, min={:?}, max={:?}", name, has_nan, has_inf, min, max);
+                }
+            }
+        }
+    }
+}
 
 /// Sinusoidal timestep embeddings
 pub fn get_timestep_embedding(timesteps: &Tensor, embedding_dim: usize) -> Result<Tensor> {
@@ -290,9 +307,15 @@ impl UNetSpatioTemporalConditionModel {
         num_frames: usize,
         image_only_indicator: Option<&Tensor>,
     ) -> Result<Tensor> {
+        // Debug: check all inputs
+        debug_check_tensor("INPUT sample", sample);
+        debug_check_tensor("INPUT encoder_hidden_states", encoder_hidden_states);
+        debug_check_tensor("INPUT added_time_ids", added_time_ids);
+        
         // 1. Time embedding
         let t_emb = self.time_proj.forward(timestep)?;
         let t_emb = self.time_embedding.forward(&t_emb)?;
+        debug_check_tensor("t_emb", &t_emb);
 
         // 2. Additional time embeddings (fps, motion_bucket_id, noise_aug_strength)
         // added_time_ids: [B, 3] where dims are [fps, motion_bucket_id, noise_aug_strength]
@@ -306,18 +329,21 @@ impl UNetSpatioTemporalConditionModel {
 
         let aug_emb = Tensor::cat(&[fps_emb, motion_emb, noise_aug_emb], 1)?;
         let aug_emb = self.add_embedding.forward(&aug_emb)?;
+        debug_check_tensor("aug_emb", &aug_emb);
 
         // Combined time embedding
         let emb = (t_emb + aug_emb)?;
+        debug_check_tensor("combined_emb", &emb);
 
         // 3. Pre-process
         let sample = self.conv_in.forward(sample)?;
+        debug_check_tensor("after_conv_in", &sample);
 
         // 4. Down blocks
         let mut down_block_res_samples = vec![sample.clone()];
         let mut sample = sample;
 
-        for down_block in &self.down_blocks {
+        for (idx, down_block) in self.down_blocks.iter().enumerate() {
             let (h, res_samples) = match down_block {
                 DownBlock::Standard(block) => {
                     block.forward(&sample, Some(&emb), image_only_indicator, num_frames)?
@@ -332,6 +358,7 @@ impl UNetSpatioTemporalConditionModel {
             };
             sample = h;
             down_block_res_samples.extend(res_samples);
+            debug_check_tensor(&format!("after_down_block[{}]", idx), &sample);
         }
 
         // 5. Mid block
@@ -342,9 +369,10 @@ impl UNetSpatioTemporalConditionModel {
             image_only_indicator,
             num_frames,
         )?;
+        debug_check_tensor("after_mid_block", &sample);
 
         // 6. Up blocks
-        for up_block in &self.up_blocks {
+        for (idx, up_block) in self.up_blocks.iter().enumerate() {
             sample = match up_block {
                 UpBlock::Standard(block) => block.forward(
                     &sample,
@@ -362,12 +390,17 @@ impl UNetSpatioTemporalConditionModel {
                     num_frames,
                 )?,
             };
+            debug_check_tensor(&format!("after_up_block[{}]", idx), &sample);
         }
 
         // 7. Post-process
         let sample = self.conv_norm_out.forward(&sample)?;
         let sample = candle_nn::ops::silu(&sample)?;
-        self.conv_out.forward(&sample)
+        debug_check_tensor("after_conv_norm_out_silu", &sample);
+        
+        let output = self.conv_out.forward(&sample)?;
+        debug_check_tensor("after_conv_out", &output);
+        Ok(output)
     }
 }
 

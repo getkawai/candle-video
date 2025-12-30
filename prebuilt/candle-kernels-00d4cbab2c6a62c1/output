@@ -1,0 +1,136 @@
+cargo::rerun-if-changed=build.rs
+cargo::rerun-if-changed=src/compatibility.cuh
+cargo::rerun-if-changed=src/cuda_utils.cuh
+cargo::rerun-if-changed=src/binary_op_macros.cuh
+cargo:info=["/usr", "/usr/local/cuda", "/opt/cuda", "/usr/lib/cuda", "C:/Program Files/NVIDIA GPU Computing Toolkit", "C:/CUDA"]
+cargo:rerun-if-env-changed=CUDA_COMPUTE_CAP
+cargo:rustc-env=CUDA_COMPUTE_CAP=86
+cargo::warning=Builder { cuda_root: Some("C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6"), kernel_paths: ["src\\affine.cu", "src\\binary.cu", "src\\cast.cu", "src\\conv.cu", "src\\fill.cu", "src\\indexing.cu", "src\\moe\\moe_gguf.cu", "src\\moe\\moe_wmma.cu", "src\\moe\\moe_wmma_gguf.cu", "src\\quantized.cu", "src\\reduce.cu", "src\\sort.cu", "src\\ternary.cu", "src\\unary.cu"], watch: [], include_paths: ["src\\binary_op_macros.cuh", "src\\compatibility.cuh", "src\\cuda_utils.cuh", "src\\moe\\gguf.cuh", "src\\moe\\moe_utils.cuh"], compute_cap: Some(86), out_dir: "H:\\GitHub\\Oxide-Lab\\src-tauri\\target\\release\\build\\candle-kernels-00d4cbab2c6a62c1\\out", extra_args: ["--expt-relaxed-constexpr", "-std=c++17", "-O3", "--use_fast_math"] }
+cargo:rustc-env=CUDA_INCLUDE_DIR=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\include
+cargo:rerun-if-changed=src\binary_op_macros.cuh
+cargo:rerun-if-changed=src\compatibility.cuh
+cargo:rerun-if-changed=src\cuda_utils.cuh
+cargo:rerun-if-changed=src\moe\gguf.cuh
+cargo:rerun-if-changed=src\moe\moe_utils.cuh
+cargo:rerun-if-env-changed=NVCC_CCBIN
+cargo:rerun-if-changed=src\moe\moe_wmma.cu
+cargo:rerun-if-changed=src\cast.cu
+cargo:rerun-if-changed=src\binary.cu
+cargo:rerun-if-changed=src\affine.cu
+cargo:rerun-if-changed=src\conv.cu
+cargo:rerun-if-changed=src\moe\moe_wmma_gguf.cu
+cargo:rerun-if-changed=src\ternary.cu
+cargo:rerun-if-changed=src\sort.cu
+cargo:rerun-if-changed=src\indexing.cu
+cargo:rerun-if-changed=src\fill.cu
+cargo:rerun-if-changed=src\unary.cu
+cargo:rerun-if-changed=src\moe\moe_gguf.cu
+cargo:rerun-if-changed=src\quantized.cu
+cargo:rerun-if-changed=src\reduce.cu
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4405): warning #177-D: variable "ncols_y" was declared but never referenced
+      constexpr int ncols_y = 1;
+                    ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=16, block_q_t=block_q2_K, vdr=1, vec_dot_q_cuda=vec_dot_q2_K_q8_1]" at line 4460
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4417): warning #177-D: variable "blocks_per_col_y" was declared but never referenced
+      const int blocks_per_col_y = k_padded / 32;
+                ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=16, block_q_t=block_q2_K, vdr=1, vec_dot_q_cuda=vec_dot_q2_K_q8_1]" at line 4460
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4405): warning #177-D: variable "ncols_y" was declared but never referenced
+      constexpr int ncols_y = 1;
+                    ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=16, block_q_t=block_q3_K, vdr=1, vec_dot_q_cuda=vec_dot_q3_K_q8_1]" at line 4475
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4417): warning #177-D: variable "blocks_per_col_y" was declared but never referenced
+      const int blocks_per_col_y = k_padded / 32;
+                ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=16, block_q_t=block_q3_K, vdr=1, vec_dot_q_cuda=vec_dot_q3_K_q8_1]" at line 4475
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4405): warning #177-D: variable "ncols_y" was declared but never referenced
+      constexpr int ncols_y = 1;
+                    ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=32, block_q_t=block_q4_K, vdr=2, vec_dot_q_cuda=vec_dot_q4_K_q8_1]" at line 4490
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4417): warning #177-D: variable "blocks_per_col_y" was declared but never referenced
+      const int blocks_per_col_y = k_padded / 32;
+                ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=32, block_q_t=block_q4_K, vdr=2, vec_dot_q_cuda=vec_dot_q4_K_q8_1]" at line 4490
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4405): warning #177-D: variable "ncols_y" was declared but never referenced
+      constexpr int ncols_y = 1;
+                    ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=32, block_q_t=block_q5_K, vdr=2, vec_dot_q_cuda=vec_dot_q5_K_q8_1]" at line 4505
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4417): warning #177-D: variable "blocks_per_col_y" was declared but never referenced
+      const int blocks_per_col_y = k_padded / 32;
+                ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=32, block_q_t=block_q5_K, vdr=2, vec_dot_q_cuda=vec_dot_q5_K_q8_1]" at line 4505
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4405): warning #177-D: variable "ncols_y" was declared but never referenced
+      constexpr int ncols_y = 1;
+                    ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=32, block_q_t=block_q6_K, vdr=1, vec_dot_q_cuda=vec_dot_q6_K_q8_1]" at line 4520
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4417): warning #177-D: variable "blocks_per_col_y" was declared but never referenced
+      const int blocks_per_col_y = k_padded / 32;
+                ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=256, qi=32, block_q_t=block_q6_K, vdr=1, vec_dot_q_cuda=vec_dot_q6_K_q8_1]" at line 4520
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4405): warning #177-D: variable "ncols_y" was declared but never referenced
+      constexpr int ncols_y = 1;
+                    ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=32, qi=8, block_q_t=block_q8_0, vdr=2, vec_dot_q_cuda=vec_dot_q8_0_q8_1]" at line 4535
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\quantized.cu(4417): warning #177-D: variable "blocks_per_col_y" was declared but never referenced
+      const int blocks_per_col_y = k_padded / 32;
+                ^
+          detected during instantiation of "void indexed_moe_forward<qk,qi,block_q_t,vdr,vec_dot_q_cuda>(const void *, const void *, const unsigned int *, float *, int, int, int, int, int, int) [with qk=32, qi=8, block_q_t=block_q8_0, vdr=2, vec_dot_q_cuda=vec_dot_q8_0_q8_1]" at line 4535
+
+quantized.cu
+cargo::warning=Builder { cuda_root: Some("C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6"), kernel_paths: ["src/moe/moe_gguf.cu", "src/moe/moe_wmma.cu", "src/moe/moe_wmma_gguf.cu"], watch: [], include_paths: ["src\\binary_op_macros.cuh", "src\\compatibility.cuh", "src\\cuda_utils.cuh", "src\\moe\\gguf.cuh", "src\\moe\\moe_utils.cuh"], compute_cap: Some(86), out_dir: "H:\\GitHub\\Oxide-Lab\\src-tauri\\target\\release\\build\\candle-kernels-00d4cbab2c6a62c1\\out", extra_args: ["--expt-relaxed-constexpr", "-std=c++17", "-O3", "--use_fast_math", "-D_USE_MATH_DEFINES"] }
+moe_gguf.cu
+tmpxft_00004120_00000000-10_moe_gguf.cudafe1.cpp
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\moe\moe_wmma.cu(110): warning #177-D: variable "laneId" was declared but never referenced
+      const int laneId = threadId % 32;
+                ^
+          detected during instantiation of "void vllm_rs::moe_gemm_grouped_kernel<T,WMMA_M,WMMA_N,WARPS_N>(const T *, const T *, const int32_t *, const int32_t *, const float *, T *, int, int, int32_t, int32_t, int32_t) [with T=half, WMMA_M=16, WMMA_N=16, WARPS_N=2]" at line 271
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\moe\moe_wmma.cu(110): warning #177-D: variable "laneId" was declared but never referenced
+      const int laneId = threadId % 32;
+                ^
+          detected during instantiation of "void vllm_rs::moe_gemm_grouped_kernel<T,WMMA_M,WMMA_N,WARPS_N>(const T *, const T *, const int32_t *, const int32_t *, const float *, T *, int, int, int32_t, int32_t, int32_t) [with T=half, WMMA_M=8, WMMA_N=32, WARPS_N=1]" at line 274
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\moe\moe_wmma.cu(110): warning #177-D: variable "laneId" was declared but never referenced
+      const int laneId = threadId % 32;
+                ^
+          detected during instantiation of "void vllm_rs::moe_gemm_grouped_kernel<T,WMMA_M,WMMA_N,WARPS_N>(const T *, const T *, const int32_t *, const int32_t *, const float *, T *, int, int, int32_t, int32_t, int32_t) [with T=nv_bfloat16, WMMA_M=16, WMMA_N=16, WARPS_N=2]" at line 278
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\moe\moe_wmma.cu(110): warning #177-D: variable "laneId" was declared but never referenced
+      const int laneId = threadId % 32;
+                ^
+          detected during instantiation of "void vllm_rs::moe_gemm_grouped_kernel<T,WMMA_M,WMMA_N,WARPS_N>(const T *, const T *, const int32_t *, const int32_t *, const float *, T *, int, int, int32_t, int32_t, int32_t) [with T=nv_bfloat16, WMMA_M=8, WMMA_N=32, WARPS_N=1]" at line 280
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\moe\moe_wmma.cu(37): warning #177-D: variable "vllm_rs::NUM_VECS" was declared but never referenced
+  constexpr int NUM_VECS = 32;
+                ^
+
+C:\Users\PC\.cargo\git\checkouts\candle-5b4d092929d18d36\63437a4\candle-kernels\src\moe\moe_wmma.cu(40): warning #177-D: variable "vllm_rs::WARPS_PER_BLOCK" was declared but never referenced
+  constexpr int WARPS_PER_BLOCK = 4; 
+                ^
+
+moe_wmma.cu
+tmpxft_000054e0_00000000-10_moe_wmma.cudafe1.cpp
+moe_wmma_gguf.cu
+tmpxft_0000081c_00000000-10_moe_wmma_gguf.cudafe1.cpp
+moe_gguf-c156b6651de223de.o
+moe_wmma-b5c0983698e02823.o
+moe_wmma_gguf-b567cf86570cfafb.o
+cargo:rustc-link-search=H:\GitHub\Oxide-Lab\src-tauri\target\release\build\candle-kernels-00d4cbab2c6a62c1\out
+cargo:rustc-link-lib=moe
+cargo:rustc-link-lib=dylib=cudart
+cargo:rustc-link-lib=stdc++

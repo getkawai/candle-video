@@ -98,9 +98,14 @@ impl AutoencoderKLTemporalDecoder {
     /// Decode latents to video frames using temporal decoder
     /// Input: [B*F, 4, H/8, W/8] latents
     /// Output: [B*F, 3, H, W] frames
-    /// 
+    ///
     /// If chunk_size is Some, decodes frames in chunks to reduce VRAM usage.
-    pub fn decode(&self, z: &Tensor, num_frames: usize, chunk_size: Option<usize>) -> Result<Tensor> {
+    pub fn decode(
+        &self,
+        z: &Tensor,
+        num_frames: usize,
+        chunk_size: Option<usize>,
+    ) -> Result<Tensor> {
         let original_dtype = z.dtype();
         let batch_frames = z.dim(0)?;
         let _batch_size = batch_frames / num_frames;
@@ -119,17 +124,25 @@ impl AutoencoderKLTemporalDecoder {
         for start in (0..batch_frames).step_by(chunk_size) {
             let end = std::cmp::min(start + chunk_size, batch_frames);
             let chunk_len = end - start;
-            
+
             // Extract chunk: [chunk_len, C, H, W]
             let z_chunk = z.narrow(0, start, chunk_len)?;
-            
+
             // For image_only_indicator, we need batch_size and num_frames_in_chunk
             // Each chunk may not align perfectly with num_frames, so we compute dynamically
             let num_frames_in_chunk = chunk_len.min(num_frames);
             let batch_for_chunk = chunk_len.div_ceil(num_frames_in_chunk);
-            let image_only_indicator = Tensor::zeros((batch_for_chunk, num_frames_in_chunk), z.dtype(), z.device())?;
-            
-            let decoded = self.temporal_decoder.forward(&z_chunk, &image_only_indicator, num_frames_in_chunk)?;
+            let image_only_indicator = Tensor::zeros(
+                (batch_for_chunk, num_frames_in_chunk),
+                z.dtype(),
+                z.device(),
+            )?;
+
+            let decoded = self.temporal_decoder.forward(
+                &z_chunk,
+                &image_only_indicator,
+                num_frames_in_chunk,
+            )?;
             decoded_chunks.push(decoded);
         }
 

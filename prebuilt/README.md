@@ -1,113 +1,41 @@
-# Prebuilt Libraries
+# Prebuilt Artifacts
 
-[![RU English](README.RU.md)](README.RU.md)
-[![EN English](README.md)](README.md)
+[![RU](README.RU.md)](README.RU.md) [![EN](README.md)](README.md)
 
-This directory contains precompiled CUDA kernels for Flash Attention to significantly speed up the build process.
+This directory contains precompiled build artifacts for **Candle Video** dependencies (Flash Attention and Candle Kernels) to significantly reduce build times.
 
 ## 📦 Contents
 
-- **`libflashattention.a`** (~230 MB) - Precompiled static library containing CUDA kernels for Flash Attention 2
+The directory contains build artifacts for the following crates:
 
-## 🎯 Purpose
+- **`candle-flash-attn-59809d6940b6f0bb/`**
+  - Contains `libflashattention.a` (~230 MB) and object files.
+- **`candle-kernels-00d4cbab2c6a62c1/`**
+  - Contains compiled PTX files and `libmoe.a`.
 
-Compiling CUDA kernels for Flash Attention from source takes **15-20 minutes** on the first build. By using precompiled kernels from this directory, subsequent builds complete in **seconds**.
+## ℹ️ Build Information
+
+These artifacts were compiled with the following configuration:
+
+- **Candle Version**: 0.9.2-alpha.2
+- **CUDA Version**: 12.6
+- **Windows SDK**: 10.0.19041
+- **OS**: Windows
 
 ## 🚀 Usage
 
-The build script `build_flash_attn.cmd` automatically uses the prebuilt library if it exists:
+These artifacts are intended to populate the `target/` directory to skip recompilation of CUDA kernels (which usually takes 15-20 minutes).
 
-```cmd
-build_flash_attn.cmd
-```
+To use them:
+1. Ensure your local environment matches the versions above.
+2. Copy the contents of these directories into the corresponding `target/debug/build/` or `target/release/build/` directories created by Cargo.
+   *Note: Cargo directory names contain hashes (e.g., `candle-flash-attn-<hash>`). You may need to copy the *contents* of the prebuilt folders into your locally generated folders.*
 
-The script will:
-1. Check for `prebuilt/libflashattention.a`
-2. Copy it to the build directory
-3. Skip CUDA kernel compilation
-4. Complete the build in seconds
+## ⚠️ Compatibility Warning
 
-## 🔨 Creating Prebuilt Library (First Time)
+These binary artifacts are highly environment-specific. They will only work if:
+- You are using the exact same library versions.
+- Your CUDA toolkit version matches.
+- Your GPU architecture is compatible.
 
-If you don't have the prebuilt library yet, follow these steps:
-
-### 1. Initial Build (Compile CUDA Kernels)
-
-```cmd
-cargo check --lib --features flash-attn
-```
-
-This will compile the CUDA kernels (takes 15-20 minutes). The build may fail at the linking step - this is expected on Windows.
-
-### 2. Create Static Library
-
-After compilation, create the static library manually:
-
-```cmd
-for /d %D in (target\debug\build\candle-flash-attn-*) do lib /OUT:"%D\out\libflashattention.a" "%D\out\*.o"
-```
-
-### 3. Save Prebuilt Library
-
-Copy the created library to the `prebuilt/` directory:
-
-```cmd
-mkdir prebuilt
-for /d %D in (target\debug\build\candle-flash-attn-*) do copy "%D\out\libflashattention.a" prebuilt\
-```
-
-### 4. Future Builds
-
-Now you can use the fast build script:
-
-```cmd
-build_flash_attn.cmd
-```
-
-## ⚠️ Important Notes
-
-### Git LFS
-
-The `libflashattention.a` file is tracked via **Git LFS** because it exceeds GitHub's 100 MB file size limit. 
-
-**Before cloning the repository:**
-```bash
-git lfs install
-```
-
-**If you already cloned without LFS:**
-```bash
-git lfs pull
-```
-
-### Platform Compatibility
-
-⚠️ **Warning**: The prebuilt library is compiled for a specific:
-- CUDA version
-- GPU architecture (compute capability)
-- Visual Studio/MSVC version
-
-If you change any of these, you may need to rebuild the library.
-
-### When to Rebuild
-
-Rebuild the prebuilt library if:
-- CUDA Toolkit version changes
-- GPU architecture changes
-- Visual Studio version changes
-- You encounter linking errors
-
-## 📝 File Size
-
-The `libflashattention.a` file is approximately **230 MB**. This is normal for a static library containing compiled CUDA kernels.
-
-## 🔗 Related Documentation
-
-- [Build Script](../build_flash_attn.cmd) - Automated build script using prebuilt kernels
-- [Build Workflow](../.agent/workflows/build-flash-attn.md) - Detailed build instructions
-- [Main README](../README.md) - Project overview
-
----
-
-**Note**: Keep this directory in version control (via Git LFS) to share the prebuilt library with other developers and CI/CD systems.
-
+If you encounter linking errors or runtime crashes, delete these artifacts from your `target` directory and allow Cargo to rebuild them from source.

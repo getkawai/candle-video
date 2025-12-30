@@ -149,9 +149,9 @@ fn main() -> Result<()> {
     // Find model paths (prefer FP16 on GPU, FP32 on CPU)
     println!("\n📦 Loading model weights...");
     let model_dir = Path::new(&args.model);
-    // Always prefer FP16 if available, as requested by user. 
+    // Always prefer FP16 if available, as requested by user.
     // Even on CPU, we'll try to load FP16 (though running it might be slow or require f32 cast if ops are missing).
-    let prefer_fp16 = true; 
+    let prefer_fp16 = true;
     let (paths, is_fp16) = find_model_paths(model_dir, prefer_fp16)?;
 
     let dtype = if is_fp16 { DType::F16 } else { DType::F32 };
@@ -176,7 +176,7 @@ fn main() -> Result<()> {
 
     // Create config
     let mut config = SvdConfig::default();
-    
+
     // Disable VAE force upcast if running in F16 to avoid dtype mismatch
     // This allows the VAE to process F16 inputs with F16 weights
     if dtype == DType::F16 {

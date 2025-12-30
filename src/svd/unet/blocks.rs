@@ -320,22 +320,26 @@ impl UpBlockSpatioTemporal {
             let res_state = res_hidden_states
                 .pop()
                 .expect("Not enough skip connections");
-            
+
             // DEBUG: Check skip connection before cat
             if std::env::var("DEBUG_UNET").is_ok()
-                && let Ok(f) = res_state.flatten_all().and_then(|f| f.to_dtype(candle_core::DType::F32))
+                && let Ok(f) = res_state
+                    .flatten_all()
+                    .and_then(|f| f.to_dtype(candle_core::DType::F32))
                 && let Ok(v) = f.to_vec1::<f32>()
                 && v.iter().any(|x| x.is_nan() || x.is_infinite())
             {
                 println!("      [UP_BLOCK] res_state[{}] has NaN/Inf!", i);
             }
-            
+
             h = Tensor::cat(&[&h, &res_state], 1)?;
             h = resnet.forward(&h, temb, image_only_indicator, num_frames)?;
-            
+
             // DEBUG: Check after resnet
             if std::env::var("DEBUG_UNET").is_ok()
-                && let Ok(f) = h.flatten_all().and_then(|f| f.to_dtype(candle_core::DType::F32))
+                && let Ok(f) = h
+                    .flatten_all()
+                    .and_then(|f| f.to_dtype(candle_core::DType::F32))
                 && let Ok(v) = f.to_vec1::<f32>()
                 && v.iter().any(|x| x.is_nan() || x.is_infinite())
             {

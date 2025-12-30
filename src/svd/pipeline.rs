@@ -18,22 +18,27 @@ fn dump_tensor(name: &str, tensor: &Tensor) {
     if std::env::var("DUMP_TENSORS").is_ok() {
         let dir = std::path::Path::new("output/rust_tensors");
         std::fs::create_dir_all(dir).ok();
-        
+
         // Convert to f32 and save as raw binary
         if let Ok(t) = tensor.to_dtype(DType::F32)
             && let Ok(flat) = t.flatten_all()
-                && let Ok(data) = flat.to_vec1::<f32>() {
-                    // Save shape
-                    let shape: Vec<usize> = t.dims().to_vec();
-                    let shape_path = dir.join(format!("{}.shape", name));
-                    let shape_str = shape.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",");
-                    std::fs::write(&shape_path, shape_str).ok();
-                    
-                    // Save raw f32 data
-                    let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
-                    std::fs::write(dir.join(format!("{}.bin", name)), bytes).ok();
-                    debug!("Dumped tensor {} shape={:?}", name, shape);
-                }
+            && let Ok(data) = flat.to_vec1::<f32>()
+        {
+            // Save shape
+            let shape: Vec<usize> = t.dims().to_vec();
+            let shape_path = dir.join(format!("{}.shape", name));
+            let shape_str = shape
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            std::fs::write(&shape_path, shape_str).ok();
+
+            // Save raw f32 data
+            let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
+            std::fs::write(dir.join(format!("{}.bin", name)), bytes).ok();
+            debug!("Dumped tensor {} shape={:?}", name, shape);
+        }
     }
 }
 
@@ -124,8 +129,8 @@ impl SvdPipeline {
         // This is functionally equivalent - just different layer of abstraction.
         let embed_dim = image_embeddings.dim(1)?;
         let image_embeddings = image_embeddings
-            .unsqueeze(1)?                                    // [B, 1, D]
-            .repeat((1, num_frames, 1))?                      // [B, F, D]
+            .unsqueeze(1)? // [B, 1, D]
+            .repeat((1, num_frames, 1))? // [B, F, D]
             .reshape((batch_size * num_frames, 1, embed_dim))?; // [B*F, 1, D]
         dump_tensor("image_embeddings_raw", &image_embeddings);
 
@@ -168,7 +173,7 @@ impl SvdPipeline {
             &self.device,
         )?
         .to_dtype(self.dtype)?
-        .repeat((batch_size * num_frames, 1))?;  // [B*F, 3]
+        .repeat((batch_size * num_frames, 1))?; // [B*F, 3]
         dump_tensor("added_time_ids", &added_time_ids);
 
         // 4. Set up scheduler
@@ -299,7 +304,7 @@ impl SvdPipeline {
 
             // Scheduler step
             debug!(noise_pred_shape = ?noise_pred.dims(), "Before scheduler step");
-            
+
             // Debug: print tensor statistics to identify where values become zero
             if let Ok(np_f32) = noise_pred.to_dtype(candle_core::DType::F32)
                 && let Ok(flat) = np_f32.flatten_all()
@@ -308,10 +313,10 @@ impl SvdPipeline {
                 let max = flat.max(0).ok().and_then(|t| t.to_scalar::<f32>().ok());
                 println!("    noise_pred: min={:?}, max={:?}", min, max);
             }
-            
+
             let output = self.scheduler.step(&noise_pred, i, &latents)?;
             latents = output.prev_sample;
-            
+
             // Debug: latents after scheduler step
             if let Ok(lat_f32) = latents.to_dtype(candle_core::DType::F32)
                 && let Ok(flat) = lat_f32.flatten_all()

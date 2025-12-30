@@ -215,7 +215,7 @@ impl EulerDiscreteScheduler {
                 let sigma_sq_plus_1 = sigma.powi(2) + 1.0;
                 let sigma_sq_plus_1_sqrt = sigma_sq_plus_1.sqrt();
                 let c_out = -sigma / sigma_sq_plus_1_sqrt;
-                let c_skip = 1.0 / sigma_sq_plus_1;  // NOT sqrt!
+                let c_skip = 1.0 / sigma_sq_plus_1; // NOT sqrt!
 
                 let pred_x0 = (&model_output * c_out)?.add(&(&sample * c_skip)?)?;
                 // derivative (dx/dt) = (sample - pred_x0) / sigma

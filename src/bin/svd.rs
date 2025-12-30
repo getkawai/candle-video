@@ -161,7 +161,11 @@ fn main() -> Result<()> {
     println!(
         "Dtype: {:?} (weights are {})",
         dtype,
-        if is_fp16 { "FP16 -> upcast to F32" } else { "F32" }
+        if is_fp16 {
+            "FP16 -> upcast to F32"
+        } else {
+            "F32"
+        }
     );
 
     println!("  UNet: {}", paths.unet.display());

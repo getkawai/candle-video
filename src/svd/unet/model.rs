@@ -1,4 +1,5 @@
- //! UNet Spatio-Temporal Condition Model for SVD
+
+//! UNet Spatio-Temporal Condition Model for SVD
 //!
 //! Main UNet architecture for Stable Video Diffusion.
 
@@ -17,12 +18,21 @@ fn debug_check_tensor(name: &str, tensor: &Tensor) {
         && let Ok(f32_tensor) = tensor.to_dtype(DType::F32)
         && let Ok(flat) = f32_tensor.flatten_all()
     {
-        let has_nan = flat.to_vec1::<f32>().map(|v| v.iter().any(|x| x.is_nan())).unwrap_or(false);
-        let has_inf = flat.to_vec1::<f32>().map(|v| v.iter().any(|x| x.is_infinite())).unwrap_or(false);
+        let has_nan = flat
+            .to_vec1::<f32>()
+            .map(|v| v.iter().any(|x| x.is_nan()))
+            .unwrap_or(false);
+        let has_inf = flat
+            .to_vec1::<f32>()
+            .map(|v| v.iter().any(|x| x.is_infinite()))
+            .unwrap_or(false);
         let min = flat.min(0).ok().and_then(|t| t.to_scalar::<f32>().ok());
         let max = flat.max(0).ok().and_then(|t| t.to_scalar::<f32>().ok());
         if has_nan || has_inf {
-            println!("    [UNET] {} has NaN={}, Inf={}, min={:?}, max={:?}", name, has_nan, has_inf, min, max);
+            println!(
+                "    [UNET] {} has NaN={}, Inf={}, min={:?}, max={:?}",
+                name, has_nan, has_inf, min, max
+            );
         }
     }
 }
@@ -310,7 +320,7 @@ impl UNetSpatioTemporalConditionModel {
         debug_check_tensor("INPUT sample", sample);
         debug_check_tensor("INPUT encoder_hidden_states", encoder_hidden_states);
         debug_check_tensor("INPUT added_time_ids", added_time_ids);
-        
+
         // 1. Time embedding
         let t_emb = self.time_proj.forward(timestep)?;
         let t_emb = self.time_embedding.forward(&t_emb)?;
@@ -396,7 +406,7 @@ impl UNetSpatioTemporalConditionModel {
         let sample = self.conv_norm_out.forward(&sample)?;
         let sample = candle_nn::ops::silu(&sample)?;
         debug_check_tensor("after_conv_norm_out_silu", &sample);
-        
+
         let output = self.conv_out.forward(&sample)?;
         debug_check_tensor("after_conv_out", &output);
         Ok(output)

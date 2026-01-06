@@ -1,11 +1,13 @@
 //! Spatio-Temporal Transformer for SVD UNet
 //!
 //! Implements spatial and temporal attention mechanisms.
+//! Uses common::attention for cross-platform dispatch (CUDA/Metal/CPU).
 
-use candle_core::{D, DType, Module, Result, Tensor};
+use candle_core::{D, Module, Result, Tensor};
 use candle_nn::{Linear, VarBuilder, linear};
 
 use super::model::get_timestep_embedding;
+use crate::common::attention::attention_dispatch;
 
 /// Feed-forward network with GEGLU activation
 #[derive(Debug)]
@@ -90,60 +92,24 @@ impl Attention {
         let k = self.to_k.forward(context)?;
         let v = self.to_v.forward(context)?;
 
-        // Prepare Q, K, V for attention
-        // FlashAttn expects: [batch, seq, heads, head_dim]
-        // ChunkedAttn expects: [batch, heads, seq, head_dim] (which we transpose to inside the helper)
-        // But our inputs are [batch, seq, inner_dim].
-
+        // Reshape to multi-head format: [B, seq, heads, head_dim]
         let q = q.reshape((batch, seq_len, self.heads, self.head_dim))?;
         let k = k.reshape((batch, kv_seq_len, self.heads, self.head_dim))?;
         let v = v.reshape((batch, kv_seq_len, self.heads, self.head_dim))?;
 
-        // Check for Flash Attention compatibility
-        // - Must compile with "flash-attn" feature
-        // - Must be on CUDA
-        // - Must be F16 or BF16 (FlashAttn doesn't support F32)
-        // - No masking (or simple causal, but here we don't use causal mask for SVD spatial/temporal usually? Check this.)
-        let use_flash = cfg!(feature = "flash-attn")
-            && matches!(hidden_states.device(), candle_core::Device::Cuda(_))
-            && matches!(hidden_states.dtype(), DType::F16 | DType::BF16);
+        // Use cross-platform attention dispatch (CUDA Flash-Attn / Metal SDPA / CPU fallback)
+        // Transpose to [B, heads, seq, head_dim] for attention_dispatch
+        let q = q.transpose(1, 2)?.contiguous()?;
+        let k = k.transpose(1, 2)?.contiguous()?;
+        let v = v.transpose(1, 2)?.contiguous()?;
 
-        let out = if use_flash {
-            #[cfg(feature = "flash-attn")]
-            {
-                // FlashAttn expects [Batch, Seq, Heads, HeadDim]
-                // Our q, k, v are already in this shape from reshape (dims order: 0, 1, 2, 3)
-                candle_flash_attn::flash_attn(&q, &k, &v, self.scale as f32, false)?
-            }
-            #[cfg(not(feature = "flash-attn"))]
-            {
-                // Should be unreachable due to `use_flash` check
-                unreachable!("Flash attention feature disabled")
-            }
-        } else {
-            // Fallback: transposing for standard/chunked attention expect [Batch, Heads, Seq, HeadDim]
-            let q = q.transpose(1, 2)?.contiguous()?;
-            let k = k.transpose(1, 2)?.contiguous()?;
-            let v = v.transpose(1, 2)?.contiguous()?;
+        let out = attention_dispatch(&q, &k, &v, None, self.scale, true)?;
 
-            // Use extremely conservative chunk size for F32 fallback to prevent OOM
-            // 4 * 9216 * 8 * 64 * 4 bytes ~ 10MB per chunk output
-            let mut config = crate::ltxv::memory_efficient::MemoryEfficientConfig::low_memory();
-            config.query_chunk_size = 32; // Very safe chunk size
-
-            crate::ltxv::memory_efficient::chunked_attention(&q, &k, &v, self.scale, None, &config)?
-        };
-
-        // Reshape back: [B, S, H, D] -> [B, S, H*D]
-        // If coming from flash_attn: [B, S, H, D]
-        // If coming from chunked: [B, H, S, D] -> need transpose
-        let out = if use_flash {
-            out.reshape((batch, seq_len, ()))?
-        } else {
-            out.transpose(1, 2)?
-                .contiguous()?
-                .reshape((batch, seq_len, ()))?
-        };
+        // Reshape back: [B, heads, seq, head_dim] -> [B, seq, heads*head_dim]
+        let out = out
+            .transpose(1, 2)?
+            .contiguous()?
+            .reshape((batch, seq_len, ()))?;
 
         self.to_out.forward(&out)
     }

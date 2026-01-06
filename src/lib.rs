@@ -6,6 +6,7 @@
 //! - **LTX-Video**: Text-to-video generation using DiT architecture
 //! - **SVD (Stable Video Diffusion)**: Image-to-video using UNet spatio-temporal architecture
 
+pub mod common;
 pub mod ltxv;
 pub mod svd;
 

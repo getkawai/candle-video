@@ -36,9 +36,12 @@ pub use loader::{
 // DiT exports
 pub use dit::{
     AdaLayerNormSingle, Attention, BasicTransformerBlock, CaptionProjection, DiTBlock, FeedForward,
-    GELUProj, JointAttention, ModulationLayer, PatchEmbedding, QKNorm, RMSNormNoWeight,
-    SkipLayerStrategy, TimestepEmbedding, Transformer3DModel,
+    GELUProj, JointAttention, ModulationLayer, PatchEmbedding, QKNorm, SkipLayerStrategy,
+    TimestepEmbedding, Transformer3DModel,
 };
+
+// Re-export RmsNormNoWeight from common for backward compatibility
+pub use crate::common::norms::RmsNormNoWeight;
 
 // RoPE exports
 pub use rope::{FractionalRoPE, generate_coord_grids, generate_indices_grid};

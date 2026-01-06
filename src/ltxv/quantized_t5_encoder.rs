@@ -7,6 +7,8 @@ use candle_core::{DType, Device, Module, Result, Tensor, quantized::QTensor};
 use candle_transformers::quantized_var_builder::VarBuilder;
 use std::sync::Arc;
 
+use crate::common::norms::RmsNorm as CommonRmsNorm;
+
 /// Configuration for quantized T5 encoder
 #[derive(Debug, Clone)]
 pub struct T5EncoderConfig {
@@ -67,24 +69,15 @@ impl QLinear {
     }
 }
 
-/// RMS Layer Normalization
-struct RmsNorm {
-    weight: Tensor,
-    eps: f64,
-}
+/// RMS Layer Normalization wrapper for quantized models
+/// Uses common::norms::RmsNorm internally
+type RmsNorm = CommonRmsNorm;
 
 impl RmsNorm {
-    fn new(weight: Arc<QTensor>, eps: f64, device: &Device) -> Result<Self> {
+    /// Create RmsNorm from quantized weight
+    fn new_from_quantized(weight: Arc<QTensor>, eps: f64, device: &Device) -> Result<Self> {
         let weight = weight.dequantize(device)?;
-        Ok(Self { weight, eps })
-    }
-
-    fn forward(&self, x: &Tensor) -> Result<Tensor> {
-        let variance = x.sqr()?.mean_keepdim(candle_core::D::Minus1)?;
-        let eps_tensor =
-            Tensor::new(&[self.eps as f32], x.device())?.broadcast_as(variance.shape())?;
-        let x_norm = x.broadcast_div(&(variance.broadcast_add(&eps_tensor)?.sqrt()?))?;
-        x_norm.broadcast_mul(&self.weight)
+        Ok(CommonRmsNorm::from_weight(weight, eps))
     }
 }
 
@@ -352,13 +345,13 @@ impl T5EncoderBlock {
         let prefix = format!("enc.blk.{}", block_idx);
 
         let attention = T5Attention::new(vb, block_idx, config)?;
-        let attn_norm = RmsNorm::new(
+        let attn_norm = RmsNorm::new_from_quantized(
             vb.get((config.d_model,), &format!("{}.attn_norm.weight", prefix))?,
             config.layer_norm_epsilon,
             device,
         )?;
         let ffn = T5FeedForward::new(vb, block_idx, config)?;
-        let ffn_norm = RmsNorm::new(
+        let ffn_norm = RmsNorm::new_from_quantized(
             vb.get((config.d_model,), &format!("{}.ffn_norm.weight", prefix))?,
             config.layer_norm_epsilon,
             device,
@@ -425,7 +418,7 @@ impl QuantizedT5EncoderModel {
         }
 
         // Load final layer norm
-        let final_norm = RmsNorm::new(
+        let final_norm = RmsNorm::new_from_quantized(
             vb.get((config.d_model,), "enc.output_norm.weight")?,
             config.layer_norm_epsilon,
             device,

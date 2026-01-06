@@ -6,6 +6,7 @@
 //! - GEGLU-based feed-forward network
 //! - Transformer3DModel for full video diffusion
 
+use crate::common::norms::RmsNormNoWeight;
 use crate::config::DitConfig;
 use crate::memory_efficient::{MemoryEfficientConfig, chunked_attention};
 use crate::rope::FractionalRoPE;
@@ -113,38 +114,10 @@ impl FeedForward {
 }
 
 // ===========================================================================
-// RMS Norm (No Weight) - for elementwise_affine=False
+// RMS Norm (No Weight) - uses common::norms::RmsNormNoWeight
 // ===========================================================================
 
-/// Root Mean Square Layer Normalization without learnable weights
-/// Used in LTX-Video for norm1/norm2 where elementwise_affine=False
-pub struct RMSNormNoWeight {
-    eps: f64,
-}
-
-impl RMSNormNoWeight {
-    pub fn new(eps: f64) -> Self {
-        Self { eps }
-    }
-
-    pub fn forward(&self, x: &Tensor) -> Result<Tensor> {
-        let input_dtype = x.dtype();
-
-        // Compute in F32 for precision (matching diffusers)
-        let internal_dtype = match input_dtype {
-            DType::F16 | DType::BF16 => DType::F32,
-            d => d,
-        };
-
-        let x_f32 = x.to_dtype(internal_dtype)?;
-        let hidden_size = x.dim(D::Minus1)?;
-        let variance = (x_f32.sqr()?.sum_keepdim(D::Minus1)? / hidden_size as f64)?;
-        let x_normed = x_f32.broadcast_div(&(variance + self.eps)?.sqrt()?)?;
-
-        // Convert back to input dtype
-        x_normed.to_dtype(input_dtype)
-    }
-}
+// Re-exported from crate::common::norms - provides RmsNormNoWeight
 
 // ===========================================================================
 // QK Normalization
@@ -584,8 +557,8 @@ impl CaptionProjection {
 /// - norm (via AdaLN) + feedforward (ff) with GEGLU
 /// - AdaLN modulation via scale_shift_table
 pub struct BasicTransformerBlock {
-    norm1: RMSNormNoWeight, // Pre self-attention normalization (NO weights, elementwise_affine=False)
-    norm2: RMSNormNoWeight, // Pre cross-attention normalization (NO weights)
+    norm1: RmsNormNoWeight, // Pre self-attention normalization (NO weights, elementwise_affine=False)
+    norm2: RmsNormNoWeight, // Pre cross-attention normalization (NO weights)
     attn1: Attention,       // Self-attention (has internal QK-norm)
     attn2: Option<Attention>, // Cross-attention (optional)
     ff: FeedForward,
@@ -597,8 +570,8 @@ impl BasicTransformerBlock {
     pub fn new(vb: VarBuilder, config: &DitConfig) -> Result<Self> {
         // Pre-normalization layers (RMSNorm with NO weights - elementwise_affine=False)
         // LTX-Video uses non-affine RMSNorm for norm1/norm2
-        let norm1 = RMSNormNoWeight::new(1e-6);
-        let norm2 = RMSNormNoWeight::new(1e-6);
+        let norm1 = RmsNormNoWeight::new(1e-6);
+        let norm2 = RmsNormNoWeight::new(1e-6);
 
         // Self-attention (no cross_attention_dim) - has internal QK-norm
         let attn1 = Attention::new(vb.pp("attn1"), config, None)?;

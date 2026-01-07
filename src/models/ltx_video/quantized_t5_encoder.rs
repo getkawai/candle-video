@@ -7,8 +7,6 @@ use candle_core::{DType, Device, Module, Result, Tensor, quantized::QTensor};
 use candle_transformers::quantized_var_builder::VarBuilder;
 use std::sync::Arc;
 
-use crate::common::norms::RmsNorm as CommonRmsNorm;
-
 /// Configuration for quantized T5 encoder
 #[derive(Debug, Clone)]
 pub struct T5EncoderConfig {
@@ -69,15 +67,37 @@ impl QLinear {
     }
 }
 
-/// RMS Layer Normalization wrapper for quantized models
-/// Uses common::norms::RmsNorm internally
-type RmsNorm = CommonRmsNorm;
+/// RMS Layer Normalization
+pub struct RmsNorm {
+    weight: Tensor,
+    eps: f64,
+}
 
 impl RmsNorm {
-    /// Create RmsNorm from quantized weight
     fn new_from_quantized(weight: Arc<QTensor>, eps: f64, device: &Device) -> Result<Self> {
         let weight = weight.dequantize(device)?;
-        Ok(CommonRmsNorm::from_weight(weight, eps))
+        Ok(Self { weight, eps })
+    }
+
+    fn forward(&self, x: &Tensor) -> Result<Tensor> {
+        let dim = x.dim(candle_core::D::Minus1)? as f64;
+        let ms = x
+            .sqr()?
+            .sum_keepdim(candle_core::D::Minus1)?
+            .affine(1.0 / dim, 0.0)?;
+        // add eps as scalar via broadcasting
+        let eps_tensor = Tensor::new(&[self.eps as f32], x.device())?.broadcast_as(ms.shape())?;
+        let denom = ms.broadcast_add(&eps_tensor)?.sqrt()?;
+        let mut ys = x.broadcast_div(&denom)?;
+
+        // Broadcast weight over leading dims
+        let rank = ys.rank();
+        let mut shape = vec![1usize; rank];
+        shape[rank - 1] = self.weight.dims1()?;
+        let w = self.weight.reshape(shape)?;
+        ys = ys.broadcast_mul(&w)?;
+
+        Ok(ys)
     }
 }
 
@@ -138,6 +158,7 @@ impl T5Attention {
         &self,
         hidden_states: &Tensor,
         position_bias: Option<&Tensor>,
+        attention_mask: Option<&Tensor>,
     ) -> Result<(Tensor, Option<Tensor>)> {
         let (batch_size, seq_len, _) = hidden_states.dims3()?;
 
@@ -161,13 +182,11 @@ impl T5Attention {
             .contiguous()?;
 
         // Attention scores
-        let scale = (self.d_kv as f64).sqrt();
         let k_t = k.transpose(2, 3)?.contiguous()?;
         let scores = q.matmul(&k_t)?;
-        let scores = (scores / scale)?;
 
         // Add position bias
-        let (scores, position_bias_out) = if let Some(bias) = position_bias {
+        let (mut scores, position_bias_out) = if let Some(bias) = position_bias {
             (scores.broadcast_add(bias)?, Some(bias.clone()))
         } else if let Some(ref rel_bias) = self.relative_attention_bias {
             let bias = self.compute_position_bias(seq_len, hidden_states.device(), rel_bias)?;
@@ -177,8 +196,16 @@ impl T5Attention {
             (scores, None)
         };
 
+        if let Some(mask) = attention_mask {
+            scores = scores.broadcast_add(mask)?;
+        }
+
         // Softmax and apply to values
-        let attn_weights = candle_nn::ops::softmax_last_dim(&scores)?;
+        // Fallback to CPU for softmax if CUDA implementation is missing or unstable
+        let scores_cpu = scores.to_device(&Device::Cpu)?;
+        let attn_weights_cpu = candle_nn::ops::softmax_last_dim(&scores_cpu)?;
+        let attn_weights = attn_weights_cpu.to_device(hidden_states.device())?;
+        
         let attn_output = attn_weights.matmul(&v)?;
 
         // Reshape back
@@ -369,10 +396,11 @@ impl T5EncoderBlock {
         &self,
         hidden_states: &Tensor,
         position_bias: Option<&Tensor>,
+        attention_mask: Option<&Tensor>,
     ) -> Result<(Tensor, Option<Tensor>)> {
         // Self-attention with pre-norm
         let normed = self.attn_norm.forward(hidden_states)?;
-        let (attn_output, position_bias_out) = self.attention.forward(&normed, position_bias)?;
+        let (attn_output, position_bias_out) = self.attention.forward(&normed, position_bias, attention_mask)?;
         let hidden_states = (hidden_states + attn_output)?;
 
         // Feed-forward with pre-norm
@@ -434,7 +462,9 @@ impl QuantizedT5EncoderModel {
     }
 
     /// Forward pass through encoder
-    pub fn forward(&self, input_ids: &Tensor) -> Result<Tensor> {
+    /// input_ids: [batch, seq_len]
+    /// attention_mask: Optional [batch, seq_len] (1.0 for keep, 0.0 for mask) - will be converted to extended mask
+    pub fn forward(&self, input_ids: &Tensor, attention_mask: Option<&Tensor>) -> Result<Tensor> {
         // Embed tokens - GGUF stores [vocab_size, d_model]
         let embedding_weights = self.embedding.dequantize(&self.device)?;
         let hidden_states =
@@ -444,8 +474,25 @@ impl QuantizedT5EncoderModel {
         let mut hidden_states = hidden_states;
         let mut position_bias: Option<Tensor> = None;
 
+        // Prepare extended attention mask if provided
+        let extended_mask = if let Some(mask) = attention_mask {
+             // mask is [batch, seq_len]. 1 for keep, 0 for discard.
+             // We want to add -1e9 for discard.
+             // (1.0 - mask) * -1e9
+             // Expand to [batch, 1, 1, seq_len] for broadcasting over heads and query dim
+             let (b, s) = mask.dims2()?;
+             let mask = mask.reshape((b, 1, 1, s))?;
+             let mask = mask.to_dtype(DType::F32)?;
+             let on = Tensor::ones_like(&mask)?;
+             let inv_mask = (on - mask)?;
+             let bias = (inv_mask * -1e9f64)?;
+             Some(bias)
+        } else {
+            None
+        };
+
         for block in &self.blocks {
-            let (new_hidden, new_bias) = block.forward(&hidden_states, position_bias.as_ref())?;
+            let (new_hidden, new_bias) = block.forward(&hidden_states, position_bias.as_ref(), extended_mask.as_ref())?;
             hidden_states = new_hidden;
             position_bias = new_bias;
         }

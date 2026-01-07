@@ -32,6 +32,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+use super::t2v_pipeline::{TextEncoder as VTextEncoder, Tokenizer as VTokenizer};
 use crate::loader::LoaderError;
 
 // =============================================================================
@@ -592,6 +593,51 @@ impl T5TextEncoderWrapper {
     }
 }
 
+impl VTextEncoder for T5TextEncoderWrapper {
+    fn dtype(&self) -> DType {
+        self.dtype
+    }
+    fn forward(&mut self, input_ids: &Tensor) -> Result<Tensor> {
+        match &mut self.model {
+            Some(m) => m.forward(input_ids),
+            None => candle_core::bail!("T5 Model not loaded"),
+        }
+    }
+}
+
+impl VTokenizer for T5TextEncoderWrapper {
+    fn model_max_length(&self) -> usize {
+        self.config.max_seq_len
+    }
+    fn encode_batch(&self, prompts: &[String], max_length: usize) -> Result<(Tensor, Tensor)> {
+        // T5TextEncoderWrapper currently only has mock_tokenize. 
+        // We should ideally use a real tokenizer if available, but for now we follow the wrapper's logic.
+        let mut all_ids = vec![];
+        let mut max_len = 0;
+        for p in prompts {
+            let ids = self.mock_tokenize(p);
+            max_len = max_len.max(ids.len());
+            all_ids.push(ids);
+        }
+        let max_len = max_len.min(max_length);
+        
+        let batch_size = prompts.len();
+        let mut ids_vec = vec![0u32; batch_size * max_len];
+        let mut mask_vec = vec![0u32; batch_size * max_len];
+        
+        for (b, ids) in all_ids.iter().enumerate() {
+            for (i, &id) in ids.iter().enumerate().take(max_len) {
+                ids_vec[b * max_len + i] = id;
+                mask_vec[b * max_len + i] = 1;
+            }
+        }
+        
+        let ids_t = Tensor::new(ids_vec, &self.device)?.reshape((batch_size, max_len))?;
+        let mask_t = Tensor::new(mask_vec, &self.device)?.reshape((batch_size, max_len))?;
+        Ok((ids_t, mask_t))
+    }
+}
+
 // =============================================================================
 // Quantized T5 Encoder (GGUF support)
 // =============================================================================
@@ -728,6 +774,52 @@ impl QuantizedT5Encoder {
             ids.push(pad_id);
         }
         ids
+    }
+}
+
+impl VTextEncoder for QuantizedT5Encoder {
+    fn dtype(&self) -> DType {
+        DType::F32 // Quantized models dequantize to F32 during forward
+    }
+    fn forward(&mut self, input_ids: &Tensor) -> Result<Tensor> {
+        self.model.encode(input_ids)
+    }
+}
+
+impl VTokenizer for QuantizedT5Encoder {
+    fn model_max_length(&self) -> usize {
+        self.max_seq_len
+    }
+    fn encode_batch(&self, prompts: &[String], max_length: usize) -> Result<(Tensor, Tensor)> {
+        let mut all_ids = vec![];
+        let mut max_len = 0;
+        for p in prompts {
+            let ids = self.tokenize(p).map_err(candle_core::Error::wrap)?;
+            max_len = max_len.max(ids.len());
+            all_ids.push(ids);
+        }
+        let max_len = max_len.min(max_length);
+        
+        let batch_size = prompts.len();
+        let mut ids_vec = vec![0u32; batch_size * max_len];
+        let mut mask_vec = vec![0u32; batch_size * max_len];
+        
+        let pad_id = self.config.pad_token_id as u32;
+        
+        for (b, ids) in all_ids.iter().enumerate() {
+            for (i, &id) in ids.iter().enumerate().take(max_len) {
+                ids_vec[b * max_len + i] = id;
+                mask_vec[b * max_len + i] = 1;
+            }
+            // padding if short
+            for i in ids.len()..max_len {
+                 ids_vec[b * max_len + i] = pad_id;
+            }
+        }
+        
+        let ids_t = Tensor::new(ids_vec, &self.device)?.reshape((batch_size, max_len))?;
+        let mask_t = Tensor::new(mask_vec, &self.device)?.reshape((batch_size, max_len))?;
+        Ok((ids_t, mask_t))
     }
 }
 

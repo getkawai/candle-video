@@ -1,14 +1,9 @@
-//! # Candle Video
+//! Candle-Video: LTX-Video integration for Candle framework.
 //!
-//! Video generation models for the Candle framework.
-//!
-//! This crate provides implementations for:
-//! - **LTX-Video**: Text-to-video generation using DiT architecture
-//! - **SVD (Stable Video Diffusion)**: Image-to-video using UNet spatio-temporal architecture
+//! This crate provides Rust implementations of video generation models,
+//! specifically LTX-Video and Stable Video Diffusion.
 
-pub mod common;
-pub mod ltxv;
-pub mod svd;
+pub mod models;
+pub mod utils;
 
-// Re-export LTX-Video components for backward compatibility
-pub use ltxv::*;
+pub use models::ltx_video::*;

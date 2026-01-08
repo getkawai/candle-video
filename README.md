@@ -8,7 +8,7 @@
 
 **Prompt:** *The waves crash against the jagged rocks of the shoreline, sending spray high into the air. The rocks are a dark gray color, with sharp edges and deep crevices. The water is a clear blue-green, with white foam where the waves break against the rocks. The sky is a light gray, with a few white clouds dotting the horizon.*
 
-![Waves and Rocks](file:///c:/candle-video/examples/ltx-video/video_without_tiling.gif)
+![Waves and Rocks](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/video_without_tiling.gif)
 
 🌐 **[Русская версия (Russian)](README.RU.md)**
 

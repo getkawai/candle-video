@@ -4,6 +4,12 @@
 
 **candle-video** — библиотека на Rust для генерации видео с использованием AI-моделей, построенная на базе фреймворка [Candle](https://github.com/huggingface/candle). Обеспечивает высокопроизводительный инференс современных моделей генерации видео.
 
+## Демонстрация
+
+**Промт:** *The waves crash against the jagged rocks of the shoreline, sending spray high into the air. The rocks are a dark gray color, with sharp edges and deep crevices. The water is a clear blue-green, with white foam where the waves break against the rocks. The sky is a light gray, with a few white clouds dotting the horizon.*
+
+![Waves and Rocks](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/video_without_tiling.gif)
+
 🌐 **[English version](README.md)**
 
 ## Поддерживаемые модели

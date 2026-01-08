@@ -10,15 +10,15 @@ fn main() -> anyhow::Result<()> {
     let path = &args[1];
     let mut file = File::open(path)?;
     let content = gguf_file::Content::read(&mut file)?;
-    
+
     println!("Tensors in {}:", path);
     let mut names: Vec<_> = content.tensor_infos.keys().collect();
     names.sort();
-    
+
     for name in names {
         let info = &content.tensor_infos[name];
         println!("{}: {:?} ({:?})", name, info.shape, info.ggml_dtype);
     }
-    
+
     Ok(())
 }

@@ -95,12 +95,16 @@ impl RmsNorm {
     }
 
     pub fn forward(&self, xs: &Tensor) -> Result<Tensor> {
-        let dim = xs.dim(D::Minus1)? as f64;
-        let ms = xs.sqr()?.sum_keepdim(D::Minus1)?.affine(1.0 / dim, 0.0)?;
-        // add eps as scalar via broadcasting
-        let eps_tensor = Tensor::new(&[self.eps as f32], xs.device())?.broadcast_as(ms.shape())?;
-        let denom = ms.broadcast_add(&eps_tensor)?.sqrt()?;
-        let mut ys = xs.broadcast_div(&denom)?;
+        let dtype = xs.dtype();
+        let xs_f32 = xs.to_dtype(DType::F32)?;
+        let dim = xs_f32.dim(D::Minus1)? as f64;
+        let ms = xs_f32
+            .sqr()?
+            .sum_keepdim(D::Minus1)?
+            .affine(1.0 / dim, 0.0)?;
+        let denom = ms.affine(1.0, self.eps)?.sqrt()?;
+        let ys_f32 = xs_f32.broadcast_div(&denom)?;
+        let mut ys = ys_f32.to_dtype(dtype)?;
         if let Some(w) = &self.weight {
             // Broadcast weight over leading dims.
             let rank = ys.rank();
@@ -206,6 +210,7 @@ impl TimestepEmbedding {
 }
 
 pub fn gelu_approximate(x: &Tensor) -> Result<Tensor> {
+    // Upcast to F32 for math stability
     let x_f32 = x.to_dtype(DType::F32)?;
     let x_cube = x_f32.sqr()?.broadcast_mul(&x_f32)?;
     let inner = x_f32.broadcast_add(&x_cube.affine(0.044715, 0.0)?)?;
@@ -226,7 +231,8 @@ pub struct PixArtAlphaCombinedTimestepSizeEmbeddings {
 
 impl PixArtAlphaCombinedTimestepSizeEmbeddings {
     pub fn new(embedding_dim: usize, vb: VarBuilder) -> Result<Self> {
-        let timestep_embedder = TimestepEmbedding::new(256, embedding_dim, vb.pp("timestep_embedder"))?;
+        let timestep_embedder =
+            TimestepEmbedding::new(256, embedding_dim, vb.pp("timestep_embedder"))?;
         Ok(Self { timestep_embedder })
     }
 
@@ -266,6 +272,9 @@ fn get_timestep_embedding(
     flip_sin_to_cos: bool,
 ) -> Result<Tensor> {
     let device = timesteps.device();
+    let original_dtype = timesteps.dtype();
+
+    // Always use F32 for sinusoidal embedding math
     let dtype = DType::F32;
 
     let n = timesteps.dim(0)?;
@@ -274,15 +283,14 @@ fn get_timestep_embedding(
     let t = timesteps.to_dtype(dtype)?; // [N]
     let t = t.unsqueeze(1)?; // [N, 1]
 
-    // inv_freq: [half]
-    let idx = Tensor::arange(0u32, half as u32, device)?.to_dtype(dtype)?;
-    // exp(-ln(10000) * i / half)
-    let scale = (-((10000f64).ln()) / (half as f64)) as f32;
-    let inv_freq = (idx.affine(scale as f64, 0.0)?).exp()?; // [half]
+    let inv_freq: Vec<_> = (0..half)
+        .map(|i| 1.0 / 10000f32.powf(i as f32 / (half as f32)))
+        .collect();
+    let inv_freq = Tensor::new(inv_freq.as_slice(), device)?.to_dtype(dtype)?;
+    let freqs = t.broadcast_mul(&inv_freq.unsqueeze(0)?)?; // [N, half]
 
-    let args = t.matmul(&inv_freq.unsqueeze(0)?)?; // [N, half]
-    let sin = args.sin()?;
-    let cos = args.cos()?;
+    let sin = freqs.sin()?;
+    let cos = freqs.cos()?;
 
     let emb = if flip_sin_to_cos {
         Tensor::cat(&[cos, sin], D::Minus1)?
@@ -292,9 +300,9 @@ fn get_timestep_embedding(
 
     if embedding_dim % 2 == 1 {
         let pad = Tensor::zeros((n, 1), dtype, device)?;
-        Tensor::cat(&[emb, pad], D::Minus1)
+        Tensor::cat(&[emb, pad], D::Minus1)?.to_dtype(original_dtype)
     } else {
-        Ok(emb)
+        emb.to_dtype(original_dtype)
     }
 }
 
@@ -303,9 +311,12 @@ fn get_timestep_embedding(
 /// - freqs: (cos, sin) each [B, S, C]
 pub fn apply_rotary_emb(x: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor> {
     let dtype = x.dtype();
+    // Upcast to F32 for rotation math stability
     let x_f32 = x.to_dtype(DType::F32)?;
+    let cos = cos.to_dtype(DType::F32)?;
+    let sin = sin.to_dtype(DType::F32)?;
 
-    let (b, s, c) = x.dims3()?;
+    let (b, s, c) = x_f32.dims3()?;
     if c % 2 != 0 {
         candle_core::bail!("apply_rotary_emb expects last dim even, got {c}");
     }
@@ -319,8 +330,10 @@ pub fn apply_rotary_emb(x: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor
     // [-imag, real] interleave back.
     let x_rot = Tensor::stack(&[x_imag.neg()?, x_real.clone()], D::Minus1)?.reshape((b, s, c))?;
 
-    let out = x_f32.broadcast_mul(cos)? + x_rot.broadcast_mul(sin)?;
-    out?.to_dtype(dtype)
+    let out = x_f32
+        .broadcast_mul(&cos)?
+        .broadcast_add(&x_rot.broadcast_mul(&sin)?)?;
+    out.to_dtype(dtype)
 }
 
 #[derive(Clone, Debug)]
@@ -364,7 +377,7 @@ impl LtxVideoRotaryPosEmbed {
         rope_interpolation_scale: Option<(f64, f64, f64)>,
         device: &Device,
     ) -> Result<Tensor> {
-        // Always compute coords in fp32 (as in Python file).
+        // Compute coords in F32 for precision, convert to model dtype later
         let dtype = DType::F32;
 
         let grid_h = Tensor::arange(0u32, height as u32, device)?.to_dtype(dtype)?; // [H]
@@ -410,7 +423,10 @@ impl LtxVideoRotaryPosEmbed {
 
         // flatten dims 2..4 => seq, transpose(1,2): [B, seq, 3]
         let seq = num_frames * height * width;
-        let grid = grid.reshape((batch_size, 3, seq))?.transpose(1, 2)?;
+        let grid = grid
+            .reshape((batch_size, 3, seq))?
+            .transpose(1, 2)?
+            .contiguous()?;
         Ok(grid)
     }
 
@@ -455,7 +471,7 @@ impl LtxVideoRotaryPosEmbed {
         // freqs: theta ** linspace(log(start,theta), log(end,theta), dim//6)
         // In the file: start=1.0, end=theta => exponents go 0..1.
         let steps = self.dim / 6;
-        let dtype = DType::F32;
+        let dtype = DType::F32; // Use F32 for coordinate math
 
         let lin = if steps <= 1 {
             Tensor::zeros((1,), dtype, device)?
@@ -474,10 +490,12 @@ impl LtxVideoRotaryPosEmbed {
         let grid = grid.to_dtype(dtype)?;
         let grid_scaled = grid.unsqueeze(D::Minus1)?.affine(2.0, -1.0)?; // *2 -1
         let freqs = grid_scaled.broadcast_mul(&freqs.reshape((1, 1, 1, steps))?)?; // [B,seq,3,steps]
-        let freqs = freqs.transpose(D::Minus1, D::Minus2)?.flatten_from(2)?; // [B,seq,3*steps]
+        let freqs = freqs
+            .transpose(D::Minus1, D::Minus2)?
+            .contiguous()?
+            .flatten_from(2)?; // [B,seq,3*steps]
 
         // Manually implement repeat_interleave(2, D::Minus1) for cos/sin
-        // repeat_interleave(2) on last dim: [a, b, c] -> [a, a, b, b, c, c]
         fn repeat_interleave_2(t: &Tensor) -> Result<Tensor> {
             let t_unsq = t.unsqueeze(D::Minus1)?; // [..., C, 1]
             let t_rep = Tensor::cat(&[t_unsq.clone(), t_unsq], D::Minus1)?; // [..., C, 2]
@@ -631,7 +649,7 @@ impl LtxAttention {
         let enc = encoder_hidden_states.unwrap_or(hidden_states);
         let (_, k_len, _) = enc.dims3()?;
 
-        let attn_mask = if let Some(mask) = attention_mask {
+        let _attn_mask = if let Some(mask) = attention_mask {
             Some(self.prepare_attention_mask(mask, q_len, k_len)?)
         } else {
             None
@@ -646,48 +664,73 @@ impl LtxAttention {
         q = self.norm_q.forward(&q)?;
         k = self.norm_k.forward(&k)?;
 
-        // RoPE on Q,K if provided (Python applies on the flattened head dimension)
+        // RoPE on Q,K if provided
         if let Some((cos, sin)) = image_rotary_emb {
             q = apply_rotary_emb(&q, cos, sin)?;
             k = apply_rotary_emb(&k, cos, sin)?;
         }
 
-        // Reshape to heads and use SDPA:
-        // Python unflattens dim2 => [B, S, heads, head_dim], and dispatch returns same.
+        // Reshape to heads: [B, S, heads, head_dim]
         let q = q.reshape((b, q_len, self.heads, self.head_dim))?;
         let k = k.reshape((b, k_len, self.heads, self.head_dim))?;
         let v = v.reshape((b, k_len, self.heads, self.head_dim))?;
 
-        // candle sdpa expects [B, heads, seq, head_dim]
-        let q = q.transpose(1, 2)?.contiguous()?;
-        let k = k.transpose(1, 2)?.contiguous()?;
-        let v = v.transpose(1, 2)?.contiguous()?;
-
-        // scale is typically 1/sqrt(head_dim) inside SDPA in some frameworks;
-        // candle_nn::ops::sdpa takes explicit scale. The Python code delegates to dispatch_attention_fn;
-        // we pass the standard scale.
-        // Explicit attention implementation to avoid "no cuda implementation for softmax-last-dim"
-        // q, k, v are [B, heads, seq, head_dim]
-        // att = (q @ k.transpose(-2, -1)) * scale
+        let dtype = q.dtype();
         let scale = 1f32 / (self.head_dim as f32).sqrt();
-        let att = q.matmul(&k.transpose(D::Minus1, D::Minus2)?)?;
-        let att = (att * (scale as f64))?;
 
-        // Add mask if present
-        let att = match attn_mask {
-            Some(mask) => att.broadcast_add(&mask)?,
-            None => att,
+        // Check if we can use Flash Attention
+        let mut use_flash = false;
+        #[cfg(feature = "flash-attn")]
+        {
+            // Flash Attention doesn't support masks easily
+            if _attn_mask.is_none() && q.device().is_cuda() {
+                use_flash = true;
+            }
+        }
+
+        let out = if use_flash {
+            #[cfg(feature = "flash-attn")]
+            {
+                // candle_flash_attn expects [B, seq, heads, head_dim] which matches our current shape
+                let q_bf = q.to_dtype(DType::BF16)?;
+                let k_bf = k.to_dtype(DType::BF16)?;
+                let v_bf = v.to_dtype(DType::BF16)?;
+
+                let out = candle_flash_attn::flash_attn(&q_bf, &k_bf, &v_bf, scale, false)?;
+
+                // Result is [B, seq, heads, head_dim].
+                // We need it to be [B, heads, seq, head_dim] to match common post-processing below
+                out.transpose(1, 2)?.to_dtype(dtype)?
+            }
+            #[cfg(not(feature = "flash-attn"))]
+            {
+                unreachable!()
+            }
+        } else {
+            // Manual attention path
+            let q_f32 = q.transpose(1, 2)?.contiguous()?.to_dtype(DType::F32)?; // [B, heads, seq, head_dim]
+            let k_f32 = k.transpose(1, 2)?.contiguous()?.to_dtype(DType::F32)?;
+            let v_f32 = v.transpose(1, 2)?.contiguous()?.to_dtype(DType::F32)?;
+
+            let att = q_f32.matmul(&k_f32.transpose(D::Minus1, D::Minus2)?)?;
+            let att = (att * (scale as f64))?;
+
+            // Add mask if present
+            let att = match _attn_mask {
+                Some(ref mask) => att.broadcast_add(&mask.to_dtype(DType::F32)?)?,
+                None => att,
+            };
+
+            // Softmax - already in F32
+            let (b_sz, h_sz, q_l, k_l) = att.dims4()?;
+            let att = att.reshape((b_sz * h_sz * q_l, k_l))?;
+            let att = nn::ops::softmax(&att, D::Minus1)?;
+            let att = att.reshape((b_sz, h_sz, q_l, k_l))?;
+
+            // out = att @ v
+            let out_f32 = att.matmul(&v_f32)?;
+            out_f32.to_dtype(dtype)?
         };
-
-        // Softmax
-        // Reshape to 2D [Batch*Heads*Seq, Key] to ensure CUDA kernel compatibility
-        let (b_sz, h_sz, q_l, k_l) = att.dims4()?;
-        let att = att.reshape((b_sz * h_sz * q_l, k_l))?;
-        let att = nn::ops::softmax(&att, D::Minus1)?;
-        let att = att.reshape((b_sz, h_sz, q_l, k_l))?;
-
-        // out = att @ v
-        let out = att.matmul(&v)?;
 
         // Back to [B, S, heads, head_dim] -> flatten -> [B,S,inner_dim]
         let out = out.transpose(1, 2)?.contiguous()?;
@@ -981,14 +1024,20 @@ impl LtxVideoTransformer3DModel {
         video_coords: Option<&Tensor>,
     ) -> Result<Tensor> {
         let (_b, _s, _c) = hidden_states.dims3()?;
-        let hidden_states = self.proj_in.forward(hidden_states)?;
 
-        let timestep = timestep.flatten_all()?; // ensure [B] or flat
+        // Convert inputs to model dtype (BF16) if needed
+        let model_dtype = self.proj_in.weight().dtype();
+        let hidden_states = hidden_states.to_dtype(model_dtype)?;
+        let encoder_hidden_states = encoder_hidden_states.to_dtype(model_dtype)?;
+
+        let hidden_states = self.proj_in.forward(&hidden_states)?;
+
+        let timestep = timestep.flatten_all()?.to_dtype(model_dtype)?; // ensure [B] or flat, in BF16
 
         // 1. AdaLayerNormSingle (Timesteps -> PixArtEmbed -> Silu -> Linear)
         let (temb, embedded_timestep) = self.time_embed.forward(&timestep)?; // [B, 6*dim], [B, dim]
 
-        let encoder_hidden_states = self.caption_projection.forward(encoder_hidden_states)?;
+        let encoder_hidden_states = self.caption_projection.forward(&encoder_hidden_states)?;
 
         // convert encoder_attention_mask to a bias
         let encoder_attention_mask = if let Some(mask) = encoder_attention_mask {
@@ -1026,7 +1075,6 @@ impl LtxVideoTransformer3DModel {
         let image_rotary_emb = Some((&cos, &sin));
 
         for block in self.transformer_blocks.iter() {
-
             hidden_states = block.forward(
                 &hidden_states,
                 &encoder_hidden_states,
@@ -1071,7 +1119,7 @@ impl LtxVideoTransformer3DModel {
         let ss = ss.broadcast_as((b, s_dim, inner_dim))?;
         let sh = shift.broadcast_as((b, s_dim, inner_dim))?;
 
-        hidden_states = hidden_states.mul(&ss)?.add(&sh)?;
+        hidden_states = hidden_states.broadcast_mul(&ss)?.broadcast_add(&sh)?;
 
         let hidden_states = self.proj_out.forward(&hidden_states)?;
 

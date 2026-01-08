@@ -1,17 +1,21 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use candle_core::{Device, Tensor};
-use candle_video::models::ltx_video::scheduler::{FlowMatchEulerDiscreteScheduler, FlowMatchEulerDiscreteSchedulerConfig, TimeShiftType};
+use candle_video::models::ltx_video::scheduler::{
+    FlowMatchEulerDiscreteScheduler, FlowMatchEulerDiscreteSchedulerConfig, TimeShiftType,
+};
 
 fn main() -> Result<()> {
     let device = Device::Cpu;
 
     println!("Loading verification data from scheduler_verification.safetensors...");
     let tensors = candle_core::safetensors::load("scheduler_verification.safetensors", &device)?;
-    
+
     let py_timesteps = tensors.get("timesteps").context("Missing timesteps")?;
     let py_sigmas = tensors.get("sigmas").context("Missing sigmas")?;
     let sample_in = tensors.get("sample_in").context("Missing sample_in")?;
-    let model_output = tensors.get("model_output").context("Missing model_output")?;
+    let model_output = tensors
+        .get("model_output")
+        .context("Missing model_output")?;
     let py_sample_out = tensors.get("sample_out").context("Missing sample_out")?;
 
     println!("Initializing Rust Scheduler...");
@@ -33,7 +37,7 @@ fn main() -> Result<()> {
     };
 
     let mut scheduler = FlowMatchEulerDiscreteScheduler::new(config)?;
-    
+
     println!("Setting timesteps (50 steps)...");
     scheduler.set_timesteps(Some(50), &device, None, None, None)?;
 
@@ -48,8 +52,13 @@ fn main() -> Result<()> {
     println!("Testing scheduler.step()...");
     let ts_vec = py_timesteps.to_vec1::<f32>()?;
     let rust_step_out = scheduler.step(model_output, ts_vec[0], sample_in, None)?;
-    
-    compare_tensors("Step Output", &rust_step_out.prev_sample, py_sample_out, 1e-5)?;
+
+    compare_tensors(
+        "Step Output",
+        &rust_step_out.prev_sample,
+        py_sample_out,
+        1e-5,
+    )?;
 
     println!("\nALL TESTS PASSED!");
     Ok(())

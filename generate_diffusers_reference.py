@@ -97,7 +97,7 @@ rng = Pcg32(seed, 1442695040888963407)
 
 height = 512
 width = 768
-num_frames = 9
+num_frames = 97
 
 vae_spatial = pipe.vae_spatial_compression_ratio
 vae_temporal = pipe.vae_temporal_compression_ratio

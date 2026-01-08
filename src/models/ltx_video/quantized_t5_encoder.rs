@@ -201,18 +201,18 @@ impl T5Attention {
             (scores.broadcast_add(bias)?, Some(bias.clone()))
         } else if let Some(ref rel_bias) = self.relative_attention_bias {
             let bias = self.compute_position_bias(seq_len, hidden_states.device(), rel_bias)?;
-            
+
             // Debug: print position bias
-            if std::env::var("DEBUG_T5").is_ok() {
-                if let Ok(vals) = bias.flatten_all()?.to_vec1::<f32>() {
-                    println!("[DEBUG T5] Position bias head 0 top 5x5:");
-                    for row in 0..5 {
-                        let start = row * seq_len;
-                        println!("  {:?}", &vals[start..start+5]);
-                    }
+            if std::env::var("DEBUG_T5").is_ok()
+                && let Ok(vals) = bias.flatten_all()?.to_vec1::<f32>()
+            {
+                println!("[DEBUG T5] Position bias head 0 top 5x5:");
+                for row in 0..5 {
+                    let start = row * seq_len;
+                    println!("  {:?}", &vals[start..start + 5]);
                 }
             }
-            
+
             let scores = scores.broadcast_add(&bias)?;
             (scores, Some(bias))
         } else {
@@ -224,13 +224,13 @@ impl T5Attention {
         }
 
         // Debug: print scores before softmax
-        if std::env::var("DEBUG_T5").is_ok() {
-            if let Ok(vals) = scores.flatten_all()?.to_vec1::<f32>() {
-                println!("[DEBUG T5] Scores before softmax head 0 top 5x5:");
-                for row in 0..5 {
-                    let start = row * seq_len;
-                    println!("  {:?}", &vals[start..start+5]);
-                }
+        if std::env::var("DEBUG_T5").is_ok()
+            && let Ok(vals) = scores.flatten_all()?.to_vec1::<f32>()
+        {
+            println!("[DEBUG T5] Scores before softmax head 0 top 5x5:");
+            for row in 0..5 {
+                let start = row * seq_len;
+                println!("  {:?}", &vals[start..start + 5]);
             }
         }
 
@@ -239,22 +239,24 @@ impl T5Attention {
         let scores_cpu = scores.to_device(&Device::Cpu)?;
         let attn_weights_cpu = candle_nn::ops::softmax_last_dim(&scores_cpu)?;
         let attn_weights = attn_weights_cpu.to_device(hidden_states.device())?;
-        
+
         let attn_output = attn_weights.matmul(&v)?;
-        
+
         // Debug Attn matmul V
         if std::env::var("DEBUG_T5").is_ok() && block_idx == 0 {
-             let transposed = attn_output.transpose(1, 2)?.reshape((
+            let transposed = attn_output.transpose(1, 2)?.reshape((
                 batch_size,
                 seq_len,
                 self.num_heads * self.d_kv,
             ))?;
-             if let Ok(v) = transposed.flatten_all()?.to_vec1::<f32>() {
-                 println!("[DEBUG T5] Block 0 Attn matmul V first 10: {:?}", &v[..10]);
-                 println!("[DEBUG T5] Block 0 Token 36 matmul V first 5: {:?}", &v[36*4096..36*4096+5]);
-             }
+            if let Ok(v) = transposed.flatten_all()?.to_vec1::<f32>() {
+                println!("[DEBUG T5] Block 0 Attn matmul V first 10: {:?}", &v[..10]);
+                println!(
+                    "[DEBUG T5] Block 0 Token 36 matmul V first 5: {:?}",
+                    &v[36 * 4096..36 * 4096 + 5]
+                );
+            }
         }
-
 
         // Reshape back
         let attn_output = attn_output.transpose(1, 2)?.reshape((
@@ -265,27 +267,34 @@ impl T5Attention {
 
         // Output projection
         let output = self.o.forward(&attn_output)?;
-        
+
         // Debug O output
         if std::env::var("DEBUG_T5").is_ok() && block_idx == 0 {
-             // Print raw O weight values for comparison with Python
-             if let Ok(o_weight) = self.o.weight.dequantize(&Device::Cpu) {
-                 if let Ok(w) = o_weight.flatten_all()?.to_vec1::<f32>() {
-                     println!("[DEBUG T5] Block 0 O weight[0, :5]: {:?}", &w[..5]);
-                     println!("[DEBUG T5] Block 0 O weight[:5, 0]: {:?}", 
-                         vec![w[0], w[4096], w[4096*2], w[4096*3], w[4096*4]]);
-                     println!("[DEBUG T5] Block 0 O weight[100, :5]: {:?}", &w[100*4096..100*4096+5]);
-                 }
-             }
-             if let Ok(v) = output.flatten_all()?.to_vec1::<f32>() {
-                 let t36_start = 36 * 4096;
-                 println!("[DEBUG T5] Block 0 Token 36 O output (before residual) first 5: {:?}", &v[t36_start..t36_start+5]);
-             }
+            // Print raw O weight values for comparison with Python
+            if let Ok(o_weight) = self.o.weight.dequantize(&Device::Cpu)
+                && let Ok(w) = o_weight.flatten_all()?.to_vec1::<f32>()
+            {
+                println!("[DEBUG T5] Block 0 O weight[0, :5]: {:?}", &w[..5]);
+                println!(
+                    "[DEBUG T5] Block 0 O weight[:5, 0]: {:?}",
+                    vec![w[0], w[4096], w[4096 * 2], w[4096 * 3], w[4096 * 4]]
+                );
+                println!(
+                    "[DEBUG T5] Block 0 O weight[100, :5]: {:?}",
+                    &w[100 * 4096..100 * 4096 + 5]
+                );
+            }
+
+            if let Ok(v) = output.flatten_all()?.to_vec1::<f32>() {
+                let t36_start = 36 * 4096;
+                println!(
+                    "[DEBUG T5] Block 0 Token 36 O output (before residual) first 5: {:?}",
+                    &v[t36_start..t36_start + 5]
+                );
+            }
         }
 
-
         Ok((output, position_bias_out))
-
     }
 
     fn compute_position_bias(
@@ -311,7 +320,7 @@ impl T5Attention {
 
         // Lookup bias values - weights are [num_buckets, num_heads]
         let bias_weights = rel_bias.dequantize(&cpu)?;
-        
+
         // Debug: print specific bucket weights
         if std::env::var("DEBUG_T5").is_ok() {
             println!("[DEBUG T5] Rust relative bias weights (Bucket x Head):");
@@ -427,14 +436,14 @@ impl T5FeedForward {
         // Gated GeLU: down(gelu_new(gate(x)) * up(x))
         // T5-v1.1-xxl uses gelu_new (tanh approximation)
         let gate_out = self.gate.forward(x)?;
-        
+
         // Debug FFN values
         if std::env::var("DEBUG_T5").is_ok() {
-             // We can't easily print the full weight here without dequantizing every time,
-             // but we can look at the output of the first linear.
-             if let Ok(v) = gate_out.flatten_all()?.to_vec1::<f32>() {
-                 println!("[DEBUG T5] FFN Gate out first 10: {:?}", &v[..10]);
-             }
+            // We can't easily print the full weight here without dequantizing every time,
+            // but we can look at the output of the first linear.
+            if let Ok(v) = gate_out.flatten_all()?.to_vec1::<f32>() {
+                println!("[DEBUG T5] FFN Gate out first 10: {:?}", &v[..10]);
+            }
         }
 
         let gate_out = gelu_new(&gate_out)?;
@@ -491,25 +500,37 @@ impl T5EncoderBlock {
     ) -> Result<(Tensor, Option<Tensor>)> {
         // Self-attention with pre-norm
         let normed = self.attn_norm.forward(hidden_states)?;
-        
+
         // Debug: print after block 0 layer_norm
-        if block_idx == 0 && std::env::var("DEBUG_T5").is_ok() {
-             if let Ok(vals) = normed.flatten_all()?.to_vec1::<f32>() {
-                 println!("[DEBUG T5] After block 0 layer_norm first 10: {:?}", &vals[..10]);
-             }
+        if block_idx == 0
+            && std::env::var("DEBUG_T5").is_ok()
+            && let Ok(vals) = normed.flatten_all()?.to_vec1::<f32>()
+        {
+            println!(
+                "[DEBUG T5] After block 0 layer_norm first 10: {:?}",
+                &vals[..10]
+            );
         }
 
-        let (attn_output, position_bias_out) = self.attention.forward(&normed, position_bias, attention_mask, block_idx)?;
+        let (attn_output, position_bias_out) =
+            self.attention
+                .forward(&normed, position_bias, attention_mask, block_idx)?;
         let hidden_states = (hidden_states + attn_output)?;
 
         // Debug: print after block 0 attention
-        if block_idx == 0 && std::env::var("DEBUG_T5").is_ok() {
-             if let Ok(vals) = hidden_states.flatten_all()?.to_vec1::<f32>() {
-                 println!("[DEBUG T5] After block 0 attention first 10: {:?}", &vals[..10]);
-                 println!("[DEBUG T5] After block 0 Token 36 attention first 5: {:?}", &vals[36*4096..36*4096+5]);
-             }
+        if block_idx == 0
+            && std::env::var("DEBUG_T5").is_ok()
+            && let Ok(vals) = hidden_states.flatten_all()?.to_vec1::<f32>()
+        {
+            println!(
+                "[DEBUG T5] After block 0 attention first 10: {:?}",
+                &vals[..10]
+            );
+            println!(
+                "[DEBUG T5] After block 0 Token 36 attention first 5: {:?}",
+                &vals[36 * 4096..36 * 4096 + 5]
+            );
         }
-
 
         // Feed-forward with pre-norm
         let normed = self.ffn_norm.forward(&hidden_states)?;
@@ -517,12 +538,16 @@ impl T5EncoderBlock {
         let hidden_states = (hidden_states + ffn_output)?;
 
         // Debug: print after block 0 full
-        if block_idx == 0 && std::env::var("DEBUG_T5").is_ok() {
-             if let Ok(vals) = hidden_states.flatten_all()?.to_vec1::<f32>() {
-                 let mean = vals.iter().sum::<f32>() / vals.len() as f32;
-                 println!("[DEBUG T5] After block 0 (full) first 10: {:?}", &vals[..10]);
-                 println!("[DEBUG T5] After block 0 mean: {:.6}", mean);
-             }
+        if block_idx == 0
+            && std::env::var("DEBUG_T5").is_ok()
+            && let Ok(vals) = hidden_states.flatten_all()?.to_vec1::<f32>()
+        {
+            let mean = vals.iter().sum::<f32>() / vals.len() as f32;
+            println!(
+                "[DEBUG T5] After block 0 (full) first 10: {:?}",
+                &vals[..10]
+            );
+            println!("[DEBUG T5] After block 0 mean: {:.6}", mean);
         }
 
         Ok((hidden_states, position_bias_out))
@@ -584,16 +609,19 @@ impl QuantizedT5EncoderModel {
     pub fn forward(&self, input_ids: &Tensor, attention_mask: Option<&Tensor>) -> Result<Tensor> {
         // Embed tokens - GGUF stores [vocab_size, d_model]
         let embedding_weights = self.embedding.dequantize(&self.device)?;
-        
+
         let hidden_states =
             candle_nn::Embedding::new(embedding_weights, self.config.d_model).forward(input_ids)?;
 
         // Debug: print token embeddings
         if std::env::var("DEBUG_T5").is_ok() {
-             println!("[DEBUG T5] Input IDs first 20: {:?}", &input_ids.flatten_all()?.to_vec1::<u32>()?[..20]);
-             if let Ok(vals) = hidden_states.flatten_all()?.to_vec1::<f32>() {
-                 println!("[DEBUG T5] Token embeddings first 10: {:?}", &vals[..10]);
-             }
+            println!(
+                "[DEBUG T5] Input IDs first 20: {:?}",
+                &input_ids.flatten_all()?.to_vec1::<u32>()?[..20]
+            );
+            if let Ok(vals) = hidden_states.flatten_all()?.to_vec1::<f32>() {
+                println!("[DEBUG T5] Token embeddings first 10: {:?}", &vals[..10]);
+            }
         }
 
         // Run through encoder blocks
@@ -602,36 +630,48 @@ impl QuantizedT5EncoderModel {
 
         // Prepare extended attention mask if provided
         let extended_mask = if let Some(mask) = attention_mask {
-             let (b, s) = mask.dims2()?;
-             let mask = mask.reshape((b, 1, 1, s))?;
-             let mask = mask.to_dtype(DType::F32)?;
-             let on = Tensor::ones_like(&mask)?;
-             let inv_mask = (on - mask)?;
-             let bias = (inv_mask * -1e9f64)?;
-             Some(bias)
+            let (b, s) = mask.dims2()?;
+            let mask = mask.reshape((b, 1, 1, s))?;
+            let mask = mask.to_dtype(DType::F32)?;
+            let on = Tensor::ones_like(&mask)?;
+            let inv_mask = (on - mask)?;
+            let bias = (inv_mask * -1e9f64)?;
+            Some(bias)
         } else {
             None
         };
 
         for (i, block) in self.blocks.iter().enumerate() {
-            let (new_hidden, new_bias) = block.forward(&hidden_states, position_bias.as_ref(), extended_mask.as_ref(), i)?;
+            let (new_hidden, new_bias) = block.forward(
+                &hidden_states,
+                position_bias.as_ref(),
+                extended_mask.as_ref(),
+                i,
+            )?;
             hidden_states = new_hidden;
             position_bias = new_bias;
         }
 
         // Final layer norm
         let out = self.final_norm.forward(&hidden_states)?;
-        
+
         // Final debug for Token 36
-        if std::env::var("DEBUG_T5").is_ok() {
-             if let Ok(vals) = out.flatten_all()?.to_vec1::<f32>() {
-                 let t36_start = 36 * 4096;
-                 println!("[DEBUG T5] Final Output Token 36 First 10: {:?}", &vals[t36_start..t36_start+10]);
-                 if t36_start + 1478 < vals.len() {
-                    println!("[DEBUG T5] Final Output Token 36 Pos 1478: {:?}", &vals[t36_start + 1478]);
-                 }
-             }
+        if std::env::var("DEBUG_T5").is_ok()
+            && let Ok(vals) = out.flatten_all()?.to_vec1::<f32>()
+        {
+            let t36_start = 36 * 4096;
+            println!(
+                "[DEBUG T5] Final Output Token 36 First 10: {:?}",
+                &vals[t36_start..t36_start + 10]
+            );
+            if t36_start + 1478 < vals.len() {
+                println!(
+                    "[DEBUG T5] Final Output Token 36 Pos 1478: {:?}",
+                    &vals[t36_start + 1478]
+                );
+            }
         }
+
         Ok(out)
     }
 

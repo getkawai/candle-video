@@ -10,7 +10,10 @@ pub struct Pcg32 {
 
 impl Pcg32 {
     pub fn new(seed: u64, inc: u64) -> Self {
-        let mut rng = Self { state: 0, inc: (inc << 1) | 1 };
+        let mut rng = Self {
+            state: 0,
+            inc: (inc << 1) | 1,
+        };
         rng.next_u32();
         rng.state = rng.state.wrapping_add(seed);
         rng.next_u32();
@@ -41,7 +44,9 @@ impl Pcg32 {
     pub fn next_gaussian(&mut self) -> (f32, f32) {
         let u1 = loop {
             let x = self.next_f32();
-            if x > 1e-7 { break x; }
+            if x > 1e-7 {
+                break x;
+            }
         };
         let u2 = self.next_f32();
 
@@ -53,7 +58,11 @@ impl Pcg32 {
     }
 
     /// Create a Tensor of Gaussian noise with shape
-    pub fn randn(&mut self, shape: impl Into<candle_core::Shape>, device: &Device) -> Result<Tensor> {
+    pub fn randn(
+        &mut self,
+        shape: impl Into<candle_core::Shape>,
+        device: &Device,
+    ) -> Result<Tensor> {
         let shape = shape.into();
         let elem_count = shape.elem_count();
         let mut data = Vec::with_capacity(elem_count);

@@ -142,10 +142,8 @@ impl LtxVideoProcessor {
 impl VideoProcessor for LtxVideoProcessor {
     fn postprocess_video(&self, video: &Tensor) -> Result<Tensor> {
         // v is in [-1, 1] usually from VAE
-        // LTX-Video VAE output might be different, but typically it is normalized.
         // Postprocess: (v + 1.0) / 2.0 -> [0, 1]
-        let video = video.broadcast_add(&Tensor::new(&[1.0f32], video.device())?)?;
-        let video = video.broadcast_div(&Tensor::new(&[2.0f32], video.device())?)?;
+        let video = video.affine(0.5, 0.5)?;
         let video = video.clamp(0.0f32, 1.0f32)?;
         // scale to 0-255
         let video = video.affine(255.0, 0.0)?;
@@ -384,16 +382,8 @@ impl<'a> LtxPipeline<'a> {
         let pe = prompt_embeds.repeat((1usize, num_videos_per_prompt, 1usize))?;
         let pe = pe.reshape((batch_size * num_videos_per_prompt, seq_len, hidden))?;
 
-        // mask: [B,L] -> repeat over batch
-        // transform to additive bias: bios = (1 - mask) * -1e9
-        let am = attention_mask.reshape((batch_size, seq_len))?;
-        let am = am.to_dtype(dtype)?;
-        let am_neg = am.affine(-1.0, 1.0)?; // 1 - mask
-        // -1e9 or similar large negative
-        let large_neg = Tensor::new(&[-1e9f32], device)?.to_dtype(dtype)?;
-        let am_bias = am_neg.broadcast_mul(&large_neg)?;
-
-        let am = am_bias.repeat((num_videos_per_prompt, 1usize))?;
+        // return raw [B, L] 0/1 mask
+        let am = attention_mask.to_dtype(dtype)?.to_device(device)?;
         Ok((pe, am))
     }
 
@@ -588,10 +578,10 @@ impl<'a> LtxPipeline<'a> {
 
         // Debug prints
         if let Ok(m_vec) = mean.flatten_all()?.to_vec1::<f32>() {
-             println!("Pipeline denorm mean[0]: {}", m_vec[0]);
+            println!("Pipeline denorm mean[0]: {}", m_vec[0]);
         }
         if let Ok(s_vec) = std.flatten_all()?.to_vec1::<f32>() {
-             println!("Pipeline denorm std[0]: {}", s_vec[0]);
+            println!("Pipeline denorm std[0]: {}", s_vec[0]);
         }
         println!("Pipeline scaling_factor: {}", scaling_factor);
 
@@ -681,7 +671,6 @@ impl<'a> LtxPipeline<'a> {
         };
         let effective_batch = batch_size * num_videos_per_prompt;
 
-
         // text embeddings
         println!("  Encoding prompt...");
         let _ = std::io::stdout().flush();
@@ -703,12 +692,16 @@ impl<'a> LtxPipeline<'a> {
             dtype,
         )?;
 
+        // Store individual embeds for sequential CFG
+        let prompt_embeds_cond = p_emb.clone();
+        let prompt_mask_cond = p_mask.clone();
+        let prompt_embeds_uncond = n_emb.clone();
+        let prompt_mask_uncond = n_mask.clone();
 
         if self.do_classifier_free_guidance() {
             p_emb = Tensor::cat(&[n_emb, p_emb], 0)?;
             p_mask = Tensor::cat(&[n_mask, p_mask], 0)?;
         }
-
 
         // latents
         println!("  Preparing latents...");
@@ -725,7 +718,6 @@ impl<'a> LtxPipeline<'a> {
             latents,
         )?;
 
-
         // timesteps/sigmas/mu
         let latent_num_frames = (num_frames - 1) / self.vae_temporal_compression_ratio + 1;
         let latent_height = height / self.vae_spatial_compression_ratio;
@@ -741,7 +733,6 @@ impl<'a> LtxPipeline<'a> {
             scfg.base_shift,
             scfg.max_shift,
         );
-
 
         let (ts, _nsteps_effective) = retrieve_timesteps(
             self.scheduler.as_mut(),
@@ -774,58 +765,81 @@ impl<'a> LtxPipeline<'a> {
 
             self.current_timestep = Some(t);
 
-            let latent_model_input = if self.do_classifier_free_guidance() {
-                Tensor::cat(&[latents.clone(), latents.clone()], 0)?
-            } else {
-                latents.clone()
-            };
-
-            let latent_model_input = latent_model_input.to_dtype(p_emb.dtype())?;
-
-            let b = latent_model_input.dim(0)?;
-            let timestep = Tensor::full(t as f32, (b,), device)?;
-
-
             println!("Denoising step {}/{} (t={})", i, ts.len(), t);
             let _ = std::io::stdout().flush();
 
-            let mut noise_pred = self.transformer.forward(
-                &latent_model_input,
-                &p_emb,
-                &timestep,
-                &p_mask,
-                latent_num_frames,
-                latent_height,
-                latent_width,
-                rope_interpolation_scale,
-            )?;
+            // Sequential CFG: run uncond and cond passes separately to save memory
+            let noise_pred = if self.do_classifier_free_guidance() {
+                // Prepare timestep for single batch
+                let b = latents.dim(0)?;
+                let timestep = Tensor::full(t as f32, (b,), device)?;
 
-            if let Ok(np_vec) = noise_pred.flatten_all()?.to_vec1::<f32>() {
-                 println!("  noise_pred[0..5]: {:?}", &np_vec[0..5]);
-            }
+                // Run unconditional pass
+                let latents_input = latents.to_dtype(prompt_embeds_uncond.dtype())?;
+                let noise_uncond = self.transformer.forward(
+                    &latents_input,
+                    &prompt_embeds_uncond,
+                    &timestep,
+                    &prompt_mask_uncond,
+                    latent_num_frames,
+                    latent_height,
+                    latent_width,
+                    rope_interpolation_scale,
+                )?;
 
-            noise_pred = noise_pred.to_dtype(DType::F32)?;
+                // Run conditional pass
+                let latents_input = latents.to_dtype(prompt_embeds_cond.dtype())?;
+                let noise_text = self.transformer.forward(
+                    &latents_input,
+                    &prompt_embeds_cond,
+                    &timestep,
+                    &prompt_mask_cond,
+                    latent_num_frames,
+                    latent_height,
+                    latent_width,
+                    rope_interpolation_scale,
+                )?;
 
-            if self.do_classifier_free_guidance() {
-                let chunks = noise_pred.chunk(2, 0)?;
-                if chunks.len() != 2 {
-                    candle_core::bail!("Expected 2 chunks for CFG, got {}", chunks.len());
-                }
-                let noise_uncond = &chunks[0];
-                let noise_text = &chunks[1];
+                // Combine with CFG formula
+                let noise_uncond = noise_uncond.to_dtype(DType::F32)?;
+                let noise_text = noise_text.to_dtype(DType::F32)?;
 
-                let diff = noise_text.broadcast_sub(noise_uncond)?;
+                let diff = noise_text.broadcast_sub(&noise_uncond)?;
                 let diff = diff.affine(self.guidance_scale as f64, 0.0)?;
-                noise_pred = noise_uncond.broadcast_add(&diff)?;
+                let mut combined = noise_uncond.broadcast_add(&diff)?;
 
                 if self.guidance_rescale > 0.0 {
-                    noise_pred = rescale_noise_cfg(&noise_pred, noise_text, self.guidance_rescale)?;
+                    combined = rescale_noise_cfg(&combined, &noise_text, self.guidance_rescale)?;
                 }
+
+                combined
+            } else {
+                // No CFG: single forward pass
+                let b = latents.dim(0)?;
+                let timestep = Tensor::full(t as f32, (b,), device)?;
+                let latents_input = latents.to_dtype(p_emb.dtype())?;
+
+                self.transformer
+                    .forward(
+                        &latents_input,
+                        &p_emb,
+                        &timestep,
+                        &p_mask,
+                        latent_num_frames,
+                        latent_height,
+                        latent_width,
+                        rope_interpolation_scale,
+                    )?
+                    .to_dtype(DType::F32)?
+            };
+
+            if let Ok(np_vec) = noise_pred.flatten_all()?.to_vec1::<f32>() {
+                println!("  noise_pred[0..5]: {:?}", &np_vec[0..5]);
             }
 
             latents = self.scheduler.step(&noise_pred, t, &latents)?;
             if let Ok(l_vec) = latents.flatten_all()?.to_vec1::<f32>() {
-                 println!("  latents statistics - first 5: {:?}", &l_vec[0..5]);
+                println!("  latents statistics - first 5: {:?}", &l_vec[0..5]);
             }
 
             if i == ts.len() - 1

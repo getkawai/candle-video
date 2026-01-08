@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 // ========== DEBUG MODULE ==========
 /// Set to true to enable verbose VAE debugging
-pub const DEBUG_VAE: bool = true;
+pub const DEBUG_VAE: bool = false;
 
 // ========== END DEBUG MODULE ==========
 
@@ -173,12 +173,12 @@ fn get_timestep_embedding(timesteps: &Tensor, embedding_dim: usize) -> Result<Te
     let half_dim = embedding_dim / 2;
     let device = timesteps.device();
     let dtype = timesteps.dtype();
-    
+
     // Python: exponent = -math.log(max_period) * torch.arange(0, half_dim) / (half_dim - downscale_freq_shift)
     // With downscale_freq_shift=0: exponent / half_dim (not half_dim - 1!)
     let max_period = 10000f64;
-    let downscale_freq_shift = 0.0;  // PixArtAlphaCombinedTimestepSizeEmbeddings uses 0
-    
+    let downscale_freq_shift = 0.0; // PixArtAlphaCombinedTimestepSizeEmbeddings uses 0
+
     let exponent_coef = -(max_period.ln()) / (half_dim as f64 - downscale_freq_shift);
     let emb = (Tensor::arange(0u32, half_dim as u32, device)?
         .to_dtype(DType::F32)?
@@ -213,9 +213,7 @@ impl TimestepEmbedder {
 
     pub fn forward(&self, t: &Tensor) -> Result<Tensor> {
         // Debug: print weight info
-        if DEBUG_VAE
-            && let Ok(w) = self.linear_1.weight().flatten_all()?.to_vec1::<f32>()
-        {
+        if DEBUG_VAE && let Ok(w) = self.linear_1.weight().flatten_all()?.to_vec1::<f32>() {
             println!(
                 "[DEBUG] TimestepEmbedder linear_1 weight first 5: {:?}",
                 &w[..5.min(w.len())]
@@ -223,7 +221,10 @@ impl TimestepEmbedder {
         }
         let h = self.linear_1.forward(t)?;
         if DEBUG_VAE && let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-            println!("[DEBUG] TimestepEmbedder after linear_1 first 5: {:?}", &vals[..5.min(vals.len())]);
+            println!(
+                "[DEBUG] TimestepEmbedder after linear_1 first 5: {:?}",
+                &vals[..5.min(vals.len())]
+            );
         }
         let h = silu(&h)?;
         self.linear_2.forward(&h)
@@ -246,12 +247,18 @@ impl CombinedTimestepEmbedder {
     pub fn forward(&self, timestep: &Tensor, hidden_dtype: DType) -> Result<Tensor> {
         // timestep -> sinusoidal -> MLP
         let timesteps_proj = get_timestep_embedding(timestep, 256)?;
-        
+
         if DEBUG_VAE && let Ok(vals) = timesteps_proj.flatten_all()?.to_vec1::<f32>() {
-            println!("[DEBUG] Rust sinusoidal embedding first 10: {:?}", &vals[..10.min(vals.len())]);
-            println!("[DEBUG] Rust sinusoidal embedding mean: {:.6}", vals.iter().sum::<f32>() / vals.len() as f32);
+            println!(
+                "[DEBUG] Rust sinusoidal embedding first 10: {:?}",
+                &vals[..10.min(vals.len())]
+            );
+            println!(
+                "[DEBUG] Rust sinusoidal embedding mean: {:.6}",
+                vals.iter().sum::<f32>() / vals.len() as f32
+            );
         }
-        
+
         self.timestep_embedder
             .forward(&timesteps_proj.to_dtype(hidden_dtype)?)
     }
@@ -449,15 +456,10 @@ impl LtxVideoCausalConv3d {
         let y = cat_dim(&ys, 2)?; // (B,Out,T_out,H',W')
 
         if let Some(bias) = &self.bias {
-            if bias.dims1()? == 48 {
-                 println!("[DEBUG] CausalConv3d(48) bias applied. Shape: {:?}", bias.dims());
-                 println!("[DEBUG] CausalConv3d(48) bias mean: {:.4}", bias.flatten_all()?.to_vec1::<f32>()?.iter().sum::<f32>() / 48.0);
-            }
             let bias = bias.reshape((1, bias.dims1()?, 1, 1, 1))?;
             y.broadcast_add(&bias)
         } else {
-             // println!("[DEBUG] CausalConv3d bias MISSING!");
-             Ok(y)
+            Ok(y)
         }
     }
 }
@@ -620,9 +622,9 @@ impl LtxVideoResnetBlock3d {
                     return Ok(norm);
                 }
             }
-             // Fallback: create RmsNorm with ones (representing no affine scaling)
-             let ones = Tensor::ones((size,), vb.dtype(), vb.device())?;
-             Ok(RmsNorm::new(ones, 1e-8))
+            // Fallback: create RmsNorm with ones (representing no affine scaling)
+            let ones = Tensor::ones((size,), vb.dtype(), vb.device())?;
+            Ok(RmsNorm::new(ones, 1e-8))
         };
 
         let norm1 = Some(load_norm("norm1", in_channels)?);
@@ -752,44 +754,58 @@ impl LtxVideoResnetBlock3d {
 
     pub fn forward(&self, inputs: &Tensor, temb: Option<&Tensor>, _train: bool) -> Result<Tensor> {
         let mut h = inputs.clone();
-        
+
         // Only apply norm if it exists
         if let Some(ref norm1) = self.norm1 {
             h = rmsnorm_channels_first(norm1, &h)?;
         }
-        
+
         // DEBUG: Check if scale_shift_table exists
         let has_sst = self.scale_shift_table.is_some();
         let has_temb = temb.is_some();
-        
+
         h = self.maybe_apply_scale_shift(h, temb, 0)?;
-        if DEBUG_VAE && has_sst && let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-             println!("[DEBUG] Resnet h after scale0: sst={}, temb={} mean: {:.4}", has_sst, has_temb, vals.iter().sum::<f32>() / vals.len() as f32);
+        if DEBUG_VAE
+            && has_sst
+            && let Ok(vals) = h.flatten_all()?.to_vec1::<f32>()
+        {
+            println!(
+                "[DEBUG] Resnet h after scale0: sst={}, temb={} mean: {:.4}",
+                has_sst,
+                has_temb,
+                vals.iter().sum::<f32>() / vals.len() as f32
+            );
         }
-        
+
         h = silu(&h)?;
-        
+
         h = self.conv1.forward(&h)?;
-        
+
         h = self.maybe_inject_noise(h, &self.per_channel_scale1)?;
 
         if let Some(ref norm2) = self.norm2 {
             h = rmsnorm_channels_first(norm2, &h)?;
         }
         h = self.maybe_apply_scale_shift(h, temb, 1)?;
-        if DEBUG_VAE && has_sst && let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-             println!("[DEBUG] Resnet h after scale1 mean: {:.4}", vals.iter().sum::<f32>() / vals.len() as f32);
+        if DEBUG_VAE
+            && has_sst
+            && let Ok(vals) = h.flatten_all()?.to_vec1::<f32>()
+        {
+            println!(
+                "[DEBUG] Resnet h after scale1 mean: {:.4}",
+                vals.iter().sum::<f32>() / vals.len() as f32
+            );
         }
         h = silu(&h)?;
-        
+
         // dropout unused in inference
 
         h = self.conv2.forward(&h)?;
-        
-        if let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-             println!("[DEBUG] Resnet output conv2 mean: {:.4}", vals.iter().sum::<f32>() / vals.len() as f32);
-        }
-        
+
+        // if let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
+        //      println!("[DEBUG] Resnet output conv2 mean: {:.4}", vals.iter().sum::<f32>() / vals.len() as f32);
+        // }
+
         h = self.maybe_inject_noise(h, &self.per_channel_scale2)?;
 
         let mut x = inputs.clone();
@@ -800,7 +816,7 @@ impl LtxVideoResnetBlock3d {
             x = cs.forward(&x)?;
         }
         let result = h.add(&x)?;
-        
+
         Ok(result)
     }
 }
@@ -981,7 +997,7 @@ impl LtxVideoMidBlock3d {
 
     pub fn forward(&self, x: &Tensor, temb: Option<&Tensor>, train: bool) -> Result<Tensor> {
         let mut h = x.clone();
-        
+
         // Apply time embedding if present
         let temb_proj = if let (Some(te), Some(t)) = (&self.time_embedder, temb) {
             if DEBUG_VAE && let Ok(vals) = t.flatten_all()?.to_vec1::<f32>() {
@@ -990,19 +1006,27 @@ impl LtxVideoMidBlock3d {
             // Python: temb = temb.view(hidden_states.size(0), -1, 1, 1, 1)
             let emb = te.forward(t, h.dtype())?;
             if DEBUG_VAE && let Ok(vals) = emb.flatten_all()?.to_vec1::<f32>() {
-                println!("[DEBUG] mid_block time_embedder output shape: {:?}, first 10: {:?}, mean: {:.4}", 
-                    emb.dims(), &vals[..10.min(vals.len())], vals.iter().sum::<f32>() / vals.len() as f32);
+                println!(
+                    "[DEBUG] mid_block time_embedder output shape: {:?}, first 10: {:?}, mean: {:.4}",
+                    emb.dims(),
+                    &vals[..10.min(vals.len())],
+                    vals.iter().sum::<f32>() / vals.len() as f32
+                );
             }
             let batch_size = h.dims5()?.0;
             let emb_dim = emb.dims2()?.1;
             Some(emb.reshape((batch_size, emb_dim, 1, 1, 1))?)
         } else {
             if DEBUG_VAE {
-                println!("[DEBUG] mid_block time_embedder: SKIPPED (te={}, temb={})", self.time_embedder.is_some(), temb.is_some());
+                println!(
+                    "[DEBUG] mid_block time_embedder: SKIPPED (te={}, temb={})",
+                    self.time_embedder.is_some(),
+                    temb.is_some()
+                );
             }
             None
         };
-        
+
         for r in self.resnets.iter() {
             h = r.forward(&h, temb_proj.as_ref(), train)?;
         }
@@ -1065,12 +1089,14 @@ impl LtxVideoUpsampler3d {
         let sh = self.stride_h;
         let sw = self.stride_w;
 
-        println!("[DEBUG] upsampler input: {:?}", x.dims());
+        if DEBUG_VAE {
+            println!("[DEBUG] upsampler input: {:?}", x.dims());
+        }
 
         let residual = if self.residual {
             let cprime = x.dims5()?.1;
             let c_out = cprime / (st * sh * sw);
-            
+
             // reshape to [B, C', st, sh, sw, T, H, W]
             let x2 = x.reshape(&[b, c_out, st, sh, sw, t, h, w])?;
             // permute(0, 1, 5, 2, 6, 3, 7, 4) -> [B, C', T, st, H, sh, W, sw]
@@ -1081,7 +1107,7 @@ impl LtxVideoUpsampler3d {
             let x2 = x2.reshape(&[b, c_out, t, st, h * sh, w * sw])?;
             // flatten(2, 3) -> [B, C', T*st, H*sh, W*sw]
             let x2 = x2.reshape(&[b, c_out, t * st, h * sh, w * sw])?;
-            
+
             // repeat channels if needed
             let x2 = if self.channel_repeats > 1 {
                 x2.repeat((1, self.channel_repeats, 1, 1, 1))?
@@ -1097,32 +1123,44 @@ impl LtxVideoUpsampler3d {
 
         let h0 = self.conv.forward(x)?;
         let h0 = h0.contiguous()?;
-        println!("[DEBUG] after conv: {:?}", h0.dims());
-        
+        if DEBUG_VAE {
+            println!("[DEBUG] after conv: {:?}", h0.dims());
+        }
+
         let (_b2, c2, t2, h2, w2) = h0.dims5()?;
         let c_out = c2 / (st * sh * sw);
-        println!("[DEBUG] c_out (C' after shuffle): {}", c_out);
+        if DEBUG_VAE {
+            println!("[DEBUG] c_out (C' after shuffle): {}", c_out);
+        }
 
         // reshape to [B, C', st, sh, sw, T, H, W]
         let h1 = h0.reshape(&[b, c_out, st, sh, sw, t2, h2, w2])?;
-        println!("[DEBUG] after reshape: {:?}", h1.dims());
-        
+        if DEBUG_VAE {
+            println!("[DEBUG] after reshape: {:?}", h1.dims());
+        }
+
         // permute(0, 1, 5, 2, 6, 3, 7, 4) -> [B, C', T, st, H, sh, W, sw]
         let h1 = h1.permute(vec![0, 1, 5, 2, 6, 3, 7, 4])?.contiguous()?;
-        println!("[DEBUG] after permute: {:?}", h1.dims());
-        
+        if DEBUG_VAE {
+            println!("[DEBUG] after permute: {:?}", h1.dims());
+        }
+
         // flatten(6, 7) -> [B, C', T, st, H, sh, W*sw]
         let h1 = h1.reshape(&[b, c_out, t2, st, h2, sh, w2 * sw])?;
         // flatten(4, 5) -> [B, C', T, st, H*sh, W*sw]
         let h1 = h1.reshape(&[b, c_out, t2, st, h2 * sh, w2 * sw])?;
         // flatten(2, 3) -> [B, C', T*st, H*sh, W*sw]
         let h1 = h1.reshape(&[b, c_out, t2 * st, h2 * sh, w2 * sw])?;
-        println!("[DEBUG] after flatten: {:?}", h1.dims());
+        if DEBUG_VAE {
+            println!("[DEBUG] after flatten: {:?}", h1.dims());
+        }
 
         // slice: [:, :, st-1:]
         let h1 = h1.i((.., .., (st - 1).., .., ..))?;
-        println!("[DEBUG] upsampler output (after slice): {:?}", h1.dims());
-        
+        if DEBUG_VAE {
+            println!("[DEBUG] upsampler output (after slice): {:?}", h1.dims());
+        }
+
         let h1 = if let Some(r) = residual {
             h1.add(&r)?
         } else {
@@ -1218,7 +1256,7 @@ impl LtxVideoUpBlock3d {
         }
 
         let time_embedder = if timestep_conditioning {
-             // Block channels * 4 for scale_shift_table compatibility
+            // Block channels * 4 for scale_shift_table compatibility
             let emb_dim = out_channels * 4;
             CombinedTimestepEmbedder::new(emb_dim, vb.pp("time_embedder")).ok()
         } else {
@@ -1236,20 +1274,20 @@ impl LtxVideoUpBlock3d {
 
     pub fn forward(&self, x: &Tensor, temb: Option<&Tensor>, train: bool) -> Result<Tensor> {
         let mut h = x.clone();
-        
+
         // Python order:
         // 1. conv_in with RAW temb (if exists)
         // 2. time_embedder to get temb_proj
         // 3. upsamplers
         // 4. resnets with temb_proj
-        
+
         // 1. conv_in uses RAW temb (before time_embedder transformation)
         //    Note: conv_in's internal scale_shift_table expects 4*C dimensional temb
         //    But the raw temb passed from decoder is just a scalar, so conv_in won't apply scale_shift
         if let Some(ci) = &self.conv_in {
-            h = ci.forward(&h, None, train)?;  // conv_in doesn't use temb in 0.9.5
+            h = ci.forward(&h, None, train)?; // conv_in doesn't use temb in 0.9.5
         }
-        
+
         // 2. Apply time_embedder AFTER conv_in (matches Python order)
         let temb_proj = if let (Some(te), Some(t)) = (&self.time_embedder, temb) {
             let emb = te.forward(t, h.dtype())?;
@@ -1266,7 +1304,7 @@ impl LtxVideoUpBlock3d {
                 h = u.forward(&h)?;
             }
         }
-        
+
         // 4. resnets use the transformed temb_proj
         for r in self.resnets.iter() {
             h = r.forward(&h, temb_proj.as_ref(), train)?;
@@ -1358,8 +1396,8 @@ impl LtxVideoEncoder3d {
         let norm_out = if let Ok(norm) = candle_nn::rms_norm(current, 1e-8, vb.pp("norm_out")) {
             Some(norm)
         } else {
-             let ones = Tensor::ones((current,), vb.dtype(), vb.device())?;
-             Some(RmsNorm::new(ones, 1e-8))
+            let ones = Tensor::ones((current,), vb.dtype(), vb.device())?;
+            Some(RmsNorm::new(ones, 1e-8))
         };
         let conv_act = Activation::Silu;
         let conv_out = LtxVideoCausalConv3d::new(
@@ -1399,13 +1437,10 @@ impl LtxVideoEncoder3d {
         let post_w = w / p;
 
         let x = x.reshape(&[b, c, post_f, pt, post_h, p, post_w, p])?;
-        let x = x.permute(vec![0, 1, 3, 7, 5, 2, 4, 6])?.contiguous()?.reshape((
-            b,
-            c * pt * p * p,
-            post_f,
-            post_h,
-            post_w,
-        ))?;
+        let x = x
+            .permute(vec![0, 1, 3, 7, 5, 2, 4, 6])?
+            .contiguous()?
+            .reshape((b, c * pt * p * p, post_f, post_h, post_w))?;
         Ok(x)
     }
 
@@ -1418,18 +1453,13 @@ impl LtxVideoEncoder3d {
         h = self.mid_block.forward(&h, None, train)?;
 
         // Apply norm_out only if it exists
-        println!("[DEBUG] pre-norm min/max: {:.4}/{:.4}", h.flatten_all()?.to_vec1::<f32>()?.iter().cloned().fold(f32::INFINITY, f32::min), h.flatten_all()?.to_vec1::<f32>()?.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
-        
         if let Some(ref norm) = self.norm_out {
             h = rmsnorm_channels_first(norm, &h)?;
-            println!("[DEBUG] post-norm min/max: {:.4}/{:.4}", h.flatten_all()?.to_vec1::<f32>()?.iter().cloned().fold(f32::INFINITY, f32::min), h.flatten_all()?.to_vec1::<f32>()?.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
-        } else {
-            println!("[DEBUG] norm_out IS MISSING!");
         }
 
         h = h.apply(&self.conv_act)?;
         h = self.conv_out.forward(&h)?;
-        println!("[DEBUG] conv_out final min/max: {:.4}/{:.4}", h.flatten_all()?.to_vec1::<f32>()?.iter().cloned().fold(f32::INFINITY, f32::min), h.flatten_all()?.to_vec1::<f32>()?.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
+        // println!("[DEBUG] conv_out final min/max: {:.4}/{:.4}", h.flatten_all()?.to_vec1::<f32>()?.iter().cloned().fold(f32::INFINITY, f32::min), h.flatten_all()?.to_vec1::<f32>()?.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
 
         // last channel replication trick (как в python)
         let (_b, ch, _t, _h, _w) = h.dims5()?;
@@ -1542,12 +1572,13 @@ impl LtxVideoDecoder3d {
         // Note: Python uses eps=1e-6. We use resnet_eps (which is 1e-6 in config).
         // Python hardcodes eps=1e-8 for norm_out and elementwise_affine=False
         // We use RmsNorm with fallback to ones (no weights in safetensors)
-        let norm_out = if let Ok(norm) = candle_nn::rms_norm(current_channels, 1e-8, vb.pp("norm_out")) {
-            Some(norm)
-        } else {
-             let ones = Tensor::ones((current_channels,), vb.dtype(), vb.device())?;
-             Some(RmsNorm::new(ones, 1e-8))
-        };
+        let norm_out =
+            if let Ok(norm) = candle_nn::rms_norm(current_channels, 1e-8, vb.pp("norm_out")) {
+                Some(norm)
+            } else {
+                let ones = Tensor::ones((current_channels,), vb.dtype(), vb.device())?;
+                Some(RmsNorm::new(ones, 1e-8))
+            };
         let conv_act = Activation::Silu;
 
         let conv_out_channels = out_channels * patch_size * patch_size;
@@ -1564,7 +1595,8 @@ impl LtxVideoDecoder3d {
 
         // Timestep conditioning (0.9.5 has timestep_conditioning=true)
         // Global decoder-level time embedder and scale_shift_table
-        let (time_embedder, scale_shift_table, timestep_scale_multiplier) = if timestep_conditioning {
+        let (time_embedder, scale_shift_table, timestep_scale_multiplier) = if timestep_conditioning
+        {
             // time_embedder output is 256 = 2 * 128 (for shift and scale)
             let emb_dim = current_channels * 2; // 128 * 2 = 256
             let te = CombinedTimestepEmbedder::new(emb_dim, vb.pp("time_embedder")).ok();
@@ -1597,86 +1629,72 @@ impl LtxVideoDecoder3d {
         //         permute(0, 1, 5, 2, 6, 4, 7, 3)
         //         flatten(6, 7).flatten(4, 5).flatten(2, 3)
         let (b, c, f, h, w) = x.dims5()?;
-        let p = self.patch_size;       // 4
-        let pt = self.patch_size_t;    // 1
-        let out_c = c / (pt * p * p);  // 48 / 16 = 3
+        let p = self.patch_size; // 4
+        let pt = self.patch_size_t; // 1
+        let out_c = c / (pt * p * p); // 48 / 16 = 3
 
-        println!("[DEBUG] unpatchify input: [{}, {}, {}, {}, {}]", b, c, f, h, w);
-        println!("[DEBUG] unpatchify params: out_c={}, pt={}, p={}", out_c, pt, p);
+        println!(
+            "[DEBUG] unpatchify input: [{}, {}, {}, {}, {}]",
+            b, c, f, h, w
+        );
+        println!(
+            "[DEBUG] unpatchify params: out_c={}, pt={}, p={}",
+            out_c, pt, p
+        );
 
         // reshape to [B, out_c, pt, p, p, F, H, W]
         let x = x.reshape(&[b, out_c, pt, p, p, f, h, w])?;
         println!("[DEBUG] after reshape: {:?}", x.dims());
-        
+
         // permute(0, 1, 5, 2, 6, 4, 7, 3) -> [B, C, F, pt, H, p, W, p]
         let x = x.permute(vec![0, 1, 5, 2, 6, 4, 7, 3])?;
         let x = x.contiguous()?;
         println!("[DEBUG] after permute: {:?}", x.dims());
-        
+
         // After permute shape: [B, C, F, pt, H, p, W, p]
         // Python flattens: flatten(6, 7).flatten(4, 5).flatten(2, 3)
         // We must do this step-by-step to match Python's memory layout
-        
+
         // flatten(6, 7): merge dimensions 6 and 7 -> [B, C, F, pt, H, p, W*p]
         let x = x.reshape(&[b, out_c, f, pt, h, p, w * p])?;
         println!("[DEBUG] after flatten(6,7): {:?}", x.dims());
-        
+
         // flatten(4, 5): merge dimensions 4 and 5 -> [B, C, F, pt, H*p, W*p]
         let x = x.reshape(&[b, out_c, f, pt, h * p, w * p])?;
         println!("[DEBUG] after flatten(4,5): {:?}", x.dims());
-        
+
         // flatten(2, 3): merge dimensions 2 and 3 -> [B, C, F*pt, H*p, W*p]
         let x = x.reshape(&[b, out_c, f * pt, h * p, w * p])?;
         println!("[DEBUG] unpatchify output: {:?}", x.dims());
-        
+
         Ok(x)
     }
 
     pub fn forward(&self, z: &Tensor, temb: Option<&Tensor>, train: bool) -> Result<Tensor> {
-        // Print input values
-        if let Ok(vals) = z.flatten_all()?.to_vec1::<f32>() {
-            println!("[DEBUG] decoder input first 5: {:?}", &vals[..5.min(vals.len())]);
-            println!("[DEBUG] decoder input min/max: {:.4}/{:.4}", vals.iter().cloned().fold(f32::INFINITY, f32::min), vals.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
-        }
-        
-        let mut h = self.conv_in.forward(z)?;
-        println!("[DEBUG] decoder.conv_in output: {:?}", h.dims());
-        if let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-            let mean = vals.iter().sum::<f32>() / vals.len() as f32;
-            println!("[DEBUG] conv_in output mean: {:.4}", mean);
-            println!("[DEBUG] conv_in output first 5: {:?}", &vals[..5.min(vals.len())]);
-            println!("[DEBUG] conv_in output min/max: {:.4}/{:.4}", vals.iter().cloned().fold(f32::INFINITY, f32::min), vals.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
-        }
+        let model_dtype = self.conv_in.conv2d_slices[0].weight().dtype();
+        let z = z.to_dtype(model_dtype)?;
+        let temb = match temb {
+            Some(t) => Some(t.to_dtype(model_dtype)?),
+            None => None,
+        };
+
+        let mut h = self.conv_in.forward(&z)?;
 
         // CRITICAL: Python applies timestep_scale_multiplier at the START of decoder.forward(),
         // BEFORE passing to mid_block and up_blocks. Each block's internal time_embedder
         // then receives the SCALED temb value.
-        let temb_scaled = if let (Some(tsm), Some(t)) = (&self.timestep_scale_multiplier, temb) {
-            let t_flat = t.flatten_all()?;
-            Some(t_flat.broadcast_mul(tsm)?)
-        } else if let Some(t) = temb {
-            Some(t.flatten_all()?)
-        } else {
-            None
-        };
+        let temb_scaled =
+            if let (Some(tsm), Some(t)) = (&self.timestep_scale_multiplier, temb.as_ref()) {
+                let t_flat = t.flatten_all()?;
+                Some(t_flat.broadcast_mul(tsm)?)
+            } else if let Some(t) = temb.as_ref() {
+                Some(t.flatten_all()?)
+            } else {
+                None
+            };
         let temb_for_blocks_ref = temb_scaled.as_ref();
 
         h = self.mid_block.forward(&h, temb_for_blocks_ref, train)?;
-        
-        // DUMP mid_block output
-        if let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-             println!("[DEBUG] mid_block output min/max: {:.4}/{:.4}", vals.iter().cloned().fold(f32::INFINITY, f32::min), vals.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
-             // Crude dump: print first 20 values for quick check
-             println!("[DEBUG] mid_block first 20: {:?}", &vals[..20.min(vals.len())]);
-             
-             // Save to file as text (space separated)
-             use std::io::Write;
-             if let Ok(mut f) = std::fs::File::create("mid_block_rust.txt") {
-                 for v in vals.iter() {
-                     write!(f, "{} ", v).unwrap();
-                 }
-             }
-        }
 
         for ub in self.up_blocks.iter() {
             h = ub.forward(&h, temb_for_blocks_ref, train)?;
@@ -1686,79 +1704,42 @@ impl LtxVideoDecoder3d {
         if let Some(ref norm) = self.norm_out {
             h = rmsnorm_channels_first(norm, &h)?;
         }
-        
-        if let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-            println!("[DEBUG] h AFTER norm_out mean: {:.4}", vals.iter().sum::<f32>() / vals.len() as f32);
-        }
-        
+
         // Apply global time_embedder + scale_shift_table if present
         // NOTE: temb_scaled already has timestep_scale_multiplier applied from earlier
-        if let (Some(te), Some(sst), Some(temb_s)) = (&self.time_embedder, &self.scale_shift_table, &temb_scaled) {
-            println!("[DEBUG] Applying global scale_shift with temb");
-            if DEBUG_VAE && let Ok(vals) = temb_s.flatten_all()?.to_vec1::<f32>() {
-                println!("[DEBUG] decoder time_embedder input (scaled temb): {:?}", &vals[..5.min(vals.len())]);
-            }
-
+        if let (Some(te), Some(sst), Some(temb_s)) =
+            (&self.time_embedder, &self.scale_shift_table, &temb_scaled)
+        {
             let temb_proj = te.forward(temb_s, h.dtype())?;
-            
+
             // temb_proj: (B, 256) = (B, 2*128)
             // reshape to (B, 2, 128) and add scale_shift_table (2, 128)
             let batch_size = h.dims5()?.0;
             let c = sst.dims2()?.1; // 128
             let temb_shaped = temb_proj
                 .reshape((batch_size, 2, c))?
-                .broadcast_add(&sst.unsqueeze(0)?)?  // (B, 2, C)
-                .unsqueeze(3)?   // (B, 2, C, 1)
-                .unsqueeze(4)?   // (B, 2, C, 1, 1)
-                .unsqueeze(5)?;  // (B, 2, C, 1, 1, 1)
-            
+                .broadcast_add(&sst.unsqueeze(0)?)? // (B, 2, C)
+                .unsqueeze(3)? // (B, 2, C, 1)
+                .unsqueeze(4)? // (B, 2, C, 1, 1)
+                .unsqueeze(5)?; // (B, 2, C, 1, 1, 1)
+
             // shift = temb_shaped[:, 0], scale = temb_shaped[:, 1]
             let shift = temb_shaped.i((.., 0, .., .., .., ..))?.squeeze(1)?;
             let scale = temb_shaped.i((.., 1, .., .., .., ..))?.squeeze(1)?;
-            
-            if let Ok(vals) = shift.flatten_all()?.to_vec1::<f32>() {
-                println!("[DEBUG] shift mean: {:.4}", vals.iter().sum::<f32>() / vals.len() as f32);
-            }
-            if let Ok(vals) = scale.flatten_all()?.to_vec1::<f32>() {
-                println!("[DEBUG] scale mean: {:.4}", vals.iter().sum::<f32>() / vals.len() as f32);
-            }
-            
-            // h = h * (1 + scale) + shift
-            let ones = Tensor::ones(scale.shape(), scale.dtype(), scale.device())?;
-            h = h.broadcast_mul(&ones.add(&scale)?)?.broadcast_add(&shift)?;
-            
-            if let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-                println!("[DEBUG] h AFTER scale/shift mean: {:.4}", vals.iter().sum::<f32>() / vals.len() as f32);
-            }
-        } else {
-            println!("[DEBUG] NOT applying global scale_shift: te={}, sst={}, temb={}", 
-                self.time_embedder.is_some(), self.scale_shift_table.is_some(), temb.is_some());
+
+            // Python: h = h * (1 + scale) + shift
+            let h_shape = h.shape();
+            let scale_b = scale.broadcast_as(h_shape)?;
+            let shift_b = shift.broadcast_as(h_shape)?;
+
+            h = h
+                .broadcast_mul(&scale_b.affine(1.0, 1.0)?)?
+                .broadcast_add(&shift_b)?;
         }
-        
+
         h = h.apply(&self.conv_act)?;
-
-        if let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-            println!("[DEBUG] h AFTER SiLU mean: {:.4}", vals.iter().sum::<f32>() / vals.len() as f32);
-        }
-
         h = self.conv_out.forward(&h)?;
-        
-        // Debug: print values before unpatchify
-        println!("[DEBUG] conv_out output: {:?}", h.dims());
-        if let Ok(vals) = h.flatten_all()?.to_vec1::<f32>() {
-            println!("[DEBUG] conv_out first 10: {:?}", &vals[..10.min(vals.len())]);
-            println!("[DEBUG] conv_out min/max: {:.4}/{:.4}", vals.iter().cloned().fold(f32::INFINITY, f32::min), vals.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
-        }
-        
-        let result = self.unpatchify(&h)?;
-        
-        // Debug: print values after unpatchify
-        if let Ok(vals) = result.flatten_all()?.to_vec1::<f32>() {
-            println!("[DEBUG] unpatchify result first 10: {:?}", &vals[..10.min(vals.len())]);
-            println!("[DEBUG] unpatchify result min/max: {:.4}/{:.4}", vals.iter().cloned().fold(f32::INFINITY, f32::min), vals.iter().cloned().fold(f32::NEG_INFINITY, f32::max));
-        }
-        
-        Ok(result)
+        self.unpatchify(&h)
     }
 }
 
@@ -1892,9 +1873,9 @@ impl AutoencoderKLLtxVideo {
             spatial_compression_ratio: config.spatial_compression_ratio,
             temporal_compression_ratio: config.temporal_compression_ratio,
             use_slicing: false,
-            use_tiling: false,
+            use_tiling: true,
             use_framewise_encoding: false,
-            use_framewise_decoding: false,
+            use_framewise_decoding: true,
             num_sample_frames_batch_size: 1,
             num_latent_frames_batch_size: 1,
             config,
@@ -2043,6 +2024,15 @@ impl AutoencoderKLLtxVideo {
     fn decode_z(&self, z: &Tensor, temb: Option<&Tensor>, train: bool) -> Result<Tensor> {
         // Python LTX VAE _decode does NOT use post_quant_conv or latents_mean/std
         // It directly calls decoder(z, temb)
+
+        // Convert inputs to model dtype (BF16) if needed
+        let model_dtype = self.decoder.conv_in.conv2d_slices[0].weight().dtype();
+        let z = z.to_dtype(model_dtype)?;
+        let temb_converted = match temb {
+            Some(t) => Some(t.to_dtype(model_dtype)?),
+            None => None,
+        };
+
         let (_b, _c, t, h, w) = z.dims5()?;
 
         let tile_latent_min_h = self.tile_sample_min_height / self.spatial_compression_ratio;
@@ -2050,16 +2040,16 @@ impl AutoencoderKLLtxVideo {
         let tile_latent_min_t = self.tile_sample_min_num_frames / self.temporal_compression_ratio;
 
         if self.use_framewise_decoding && t > tile_latent_min_t {
-            let out = self.temporal_tiled_decode(z, temb, train)?;
+            let out = self.temporal_tiled_decode(&z, temb_converted.as_ref(), train)?;
             return Ok(out);
         }
 
         if self.use_tiling && (w > tile_latent_min_w || h > tile_latent_min_h) {
-            let out = self.tiled_decode(z, temb, train)?;
+            let out = self.tiled_decode(&z, temb_converted.as_ref(), train)?;
             return Ok(out);
         }
 
-        self.decoder.forward(z, temb, train)
+        self.decoder.forward(&z, temb_converted.as_ref(), train)
     }
 
     // ===== public API =====
@@ -2173,12 +2163,14 @@ impl AutoencoderKLLtxVideo {
         for i in (0..height).step_by(self.tile_sample_stride_height) {
             let mut row: Vec<Tensor> = Vec::new();
             for j in (0..width).step_by(self.tile_sample_stride_width) {
+                let h_end = (i + self.tile_sample_min_height).min(height);
+                let w_end = (j + self.tile_sample_min_width).min(width);
                 let tile = x.i((
                     ..,
                     ..,
                     ..,
-                    i..(i + self.tile_sample_min_height),
-                    j..(j + self.tile_sample_min_width),
+                    i..h_end,
+                    j..w_end,
                 ))?;
                 let mut enc = self.encoder.forward(&tile, train)?;
                 if let Some(ref qc) = self.quant_conv {
@@ -2189,26 +2181,34 @@ impl AutoencoderKLLtxVideo {
             rows.push(row);
         }
 
+        let mut prev_row_blended: Vec<Tensor> = Vec::new();
         let mut result_rows: Vec<Tensor> = Vec::with_capacity(rows.len());
         for (ri, row) in rows.iter().enumerate() {
             let mut result_row: Vec<Tensor> = Vec::with_capacity(row.len());
+            let mut curr_row_blended: Vec<Tensor> = Vec::with_capacity(row.len());
             for (cj, tile) in row.iter().enumerate() {
                 let mut tile = tile.clone();
 
                 if ri > 0 {
-                    let above = &rows[ri - 1][cj];
+                    let above = &prev_row_blended[cj];
                     tile = self.blend_v(above, &tile, blend_h)?;
                 }
                 if cj > 0 {
-                    let left = &result_row[cj - 1];
+                    let left = &curr_row_blended[cj - 1];
                     tile = self.blend_h(left, &tile, blend_w)?;
                 }
 
-                // keep only the non-overlapping part
-                tile = tile.i((.., .., .., 0..tile_latent_stride_h, 0..tile_latent_stride_w))?;
-                result_row.push(tile);
+                // Store fully blended tile for future neighbors
+                curr_row_blended.push(tile.clone());
+
+                // Keep only the non-overlapping part for concatenation
+                let h_slice = tile_latent_stride_h.min(tile.dim(3)?);
+                let w_slice = tile_latent_stride_w.min(tile.dim(4)?);
+                let sliced_tile = tile.i((.., .., .., 0..h_slice, 0..w_slice))?;
+                result_row.push(sliced_tile);
             }
             result_rows.push(cat_dim(&result_row, 4)?);
+            prev_row_blended = curr_row_blended;
         }
 
         let enc = cat_dim(&result_rows, 3)?;
@@ -2240,12 +2240,14 @@ impl AutoencoderKLLtxVideo {
         for i in (0..height).step_by(tile_latent_stride_h) {
             let mut row: Vec<Tensor> = Vec::new();
             for j in (0..width).step_by(tile_latent_stride_w) {
+                let h_end = (i + tile_latent_min_h).min(height);
+                let w_end = (j + tile_latent_min_w).min(width);
                 let tile = z.i((
                     ..,
                     ..,
                     ..,
-                    i..(i + tile_latent_min_h),
-                    j..(j + tile_latent_min_w),
+                    i..h_end,
+                    j..w_end,
                 ))?;
                 let dec = self.decoder.forward(&tile, temb, train)?;
                 row.push(dec);
@@ -2253,31 +2255,39 @@ impl AutoencoderKLLtxVideo {
             rows.push(row);
         }
 
+        let mut prev_row_blended: Vec<Tensor> = Vec::new();
         let mut result_rows: Vec<Tensor> = Vec::with_capacity(rows.len());
         for (ri, row) in rows.iter().enumerate() {
             let mut result_row: Vec<Tensor> = Vec::with_capacity(row.len());
+            let mut curr_row_blended: Vec<Tensor> = Vec::with_capacity(row.len());
             for (cj, tile) in row.iter().enumerate() {
                 let mut tile = tile.clone();
 
                 if ri > 0 {
-                    let above = &rows[ri - 1][cj];
+                    let above = &prev_row_blended[cj];
                     tile = self.blend_v(above, &tile, blend_h)?;
                 }
                 if cj > 0 {
-                    let left = &result_row[cj - 1];
+                    let left = &curr_row_blended[cj - 1];
                     tile = self.blend_h(left, &tile, blend_w)?;
                 }
 
-                tile = tile.i((
+                // Store fully blended tile for future neighbors
+                curr_row_blended.push(tile.clone());
+
+                let h_slice = self.tile_sample_stride_height.min(tile.dim(3)?);
+                let w_slice = self.tile_sample_stride_width.min(tile.dim(4)?);
+                let sliced_tile = tile.i((
                     ..,
                     ..,
                     ..,
-                    0..self.tile_sample_stride_height,
-                    0..self.tile_sample_stride_width,
+                    0..h_slice,
+                    0..w_slice,
                 ))?;
-                result_row.push(tile);
+                result_row.push(sliced_tile);
             }
             result_rows.push(cat_dim(&result_row, 4)?);
+            prev_row_blended = curr_row_blended;
         }
 
         let dec = cat_dim(&result_rows, 3)?;
@@ -2299,7 +2309,8 @@ impl AutoencoderKLLtxVideo {
 
         let mut row: Vec<Tensor> = Vec::new();
         for i in (0..num_frames).step_by(self.tile_sample_stride_num_frames) {
-            let tile = x.i((.., .., i..(i + self.tile_sample_min_num_frames + 1), .., ..))?;
+            let t_end = (i + self.tile_sample_min_num_frames + 1).min(num_frames);
+            let tile = x.i((.., .., i..t_end, .., ..))?;
 
             let tile = if self.use_tiling
                 && (tile.dims5()?.3 > self.tile_sample_min_height
@@ -2365,7 +2376,8 @@ impl AutoencoderKLLtxVideo {
 
         let mut row: Vec<Tensor> = Vec::new();
         for i in (0..num_frames).step_by(tile_latent_stride_t) {
-            let tile = z.i((.., .., i..(i + tile_latent_min_t + 1), .., ..))?;
+            let t_end = (i + tile_latent_min_t + 1).min(num_frames);
+            let tile = z.i((.., .., i..t_end, .., ..))?;
 
             let decoded = if self.use_tiling
                 && (tile.dims5()?.3 > tile_latent_min_h || tile.dims5()?.4 > tile_latent_min_w)
@@ -2405,10 +2417,8 @@ impl AutoencoderKLLtxVideo {
 
 impl VaeLtxVideo for AutoencoderKLLtxVideo {
     fn dtype(&self) -> DType {
-        // Should return generic dtype of weights; VAE is typically loaded as f32 or bf16
-        // We can't easily check weight dtype here without checking submodules.
-        // Assume F32 for now or generic.
-        DType::F32
+        // Return actual weight dtype (e.g., DType::BF16)
+        self.decoder.conv_in.conv2d_slices[0].weight().dtype()
     }
     fn spatial_compression_ratio(&self) -> usize {
         self.config.spatial_compression_ratio

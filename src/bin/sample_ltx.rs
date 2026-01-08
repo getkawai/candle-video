@@ -50,8 +50,8 @@ struct Args {
     #[arg(long)]
     cpu: bool,
 
-    #[arg(long, default_value_t = 42)]
-    seed: u64,
+    #[arg(long)]
+    seed: Option<u64>,
 }
 
 struct TokenizerAdapter {
@@ -113,6 +113,19 @@ fn main() -> anyhow::Result<()> {
     };
     println!("Running on device: {:?}", device);
     let _ = std::io::stdout().flush();
+
+    // Generate random seed if not provided
+    let seed = args.seed.unwrap_or_else(|| {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        let random_seed = now.as_secs() ^ (now.subsec_nanos() as u64);
+        println!("Using random seed: {} (use --seed {} to reproduce)", random_seed, random_seed);
+        random_seed
+    });
+    if args.seed.is_some() {
+        println!("Using specified seed: {}", seed);
+    }
+
 
     let dtype = DType::F32; 
 
@@ -251,7 +264,7 @@ fn main() -> anyhow::Result<()> {
 
     // 4b. Prepare deterministic latents
     use candle_video::utils::deterministic_rng::Pcg32;
-    let mut rng = Pcg32::new(42, 1442695040888963407);
+    let mut rng = Pcg32::new(seed, 1442695040888963407);
     
     // Config values for LTX Video
     let vae_spatial_compression = 32;

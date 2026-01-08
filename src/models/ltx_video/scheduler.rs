@@ -7,13 +7,13 @@ use crate::models::ltx_video::t2v_pipeline::{Scheduler, SchedulerConfig, Timeste
 use candle_core::{DType, Device, Result, Tensor, bail};
 use statrs::distribution::{Beta, ContinuousCDF};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TimeShiftType {
     Exponential,
     Linear,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FlowMatchEulerDiscreteSchedulerConfig {
     pub num_train_timesteps: usize,
     pub shift: f32,
@@ -40,13 +40,14 @@ impl Default for FlowMatchEulerDiscreteSchedulerConfig {
         Self {
             num_train_timesteps: 1000,
             shift: 1.0,
-            use_dynamic_shifting: false,
-            base_shift: Some(0.5),
-            max_shift: Some(1.15),
-            base_image_seq_len: Some(256),
+            // Official Lightricks config from LTX-Video repo
+            use_dynamic_shifting: true,
+            base_shift: Some(0.95),
+            max_shift: Some(2.05),
+            base_image_seq_len: Some(1024), // Lightricks official
             max_image_seq_len: Some(4096),
             invert_sigmas: false,
-            shift_terminal: None,
+            shift_terminal: Some(0.1), // Lightricks official
             use_karras_sigmas: false,
             use_exponential_sigmas: false,
             use_beta_sigmas: false,

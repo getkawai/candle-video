@@ -19,7 +19,7 @@ use candle_nn::{
     Activation, Conv2d, Conv2dConfig, LayerNorm, LayerNormConfig, Linear, RmsNorm, VarBuilder, ops,
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // ========== DEBUG MODULE ==========
 /// Set to true to enable verbose VAE debugging
@@ -27,7 +27,7 @@ pub const DEBUG_VAE: bool = false;
 
 // ========== END DEBUG MODULE ==========
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AutoencoderKLLtxVideoConfig {
     pub in_channels: usize,
@@ -1861,6 +1861,36 @@ impl AutoencoderKLLtxVideo {
             latents_std,
             vae_config,
         })
+    }
+
+    pub fn enable_tiling(
+        &mut self,
+        tile_sample_min_height: Option<usize>,
+        tile_sample_min_width: Option<usize>,
+        tile_sample_min_num_frames: Option<usize>,
+        tile_sample_stride_height: Option<usize>,
+        tile_sample_stride_width: Option<usize>,
+        tile_sample_stride_num_frames: Option<usize>,
+    ) {
+        self.use_tiling = true;
+        if let Some(h) = tile_sample_min_height {
+            self.tile_sample_min_height = h;
+        }
+        if let Some(w) = tile_sample_min_width {
+            self.tile_sample_min_width = w;
+        }
+        if let Some(f) = tile_sample_min_num_frames {
+            self.tile_sample_min_num_frames = f;
+        }
+        if let Some(h) = tile_sample_stride_height {
+            self.tile_sample_stride_height = h;
+        }
+        if let Some(w) = tile_sample_stride_width {
+            self.tile_sample_stride_width = w;
+        }
+        if let Some(f) = tile_sample_stride_num_frames {
+            self.tile_sample_stride_num_frames = f;
+        }
     }
 
     pub fn latents_mean(&self) -> &Tensor {

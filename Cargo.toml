@@ -32,6 +32,7 @@ statrs = "0.18"
 gif = "0.14"
 mp4 = "0.14"
 rayon = "1.11.0"
+rand = "0.8"
 
 
 
@@ -80,9 +81,6 @@ path = "examples/verify/verify_vae_encoder.rs"
 name = "verify-vae-roundtrip"
 path = "examples/verify/verify_vae_roundtrip.rs"
 
-[[example]]
-name = "verify-vae-tiling"
-path = "examples/verify/verify_vae_tiling.rs"
 
 [[example]]
 name = "verify-pipeline"
@@ -91,6 +89,31 @@ path = "examples/verify/verify_pipeline.rs"
 [[example]]
 name = "verify-scheduler"
 path = "examples/verify/verify_scheduler.rs"
+
+[[example]]
+name = "verify-t5"
+path = "examples/verify_t5.rs"
+
+[[example]]
+name = "verify-pipeline-step"
+path = "examples/verify_pipeline_step.rs"
+
+[[example]]
+name = "verify-scheduler-math"
+path = "examples/verify_scheduler_math.rs"
+
+[[example]]
+name = "verify-vae-decode"
+path = "examples/verify_vae_decode.rs"
+
+[[example]]
+name = "verify-vae-tiling"
+path = "examples/verify_vae_tiling.rs"
+
+[[example]]
+name = "verify-scheduler-step"
+path = "examples/verify_scheduler_step.rs"
+required-features = ["flash-attn", "cudnn"]
 
 [[example]]
 name = "verify-rng"

@@ -575,7 +575,6 @@ impl<'a> LtxPipeline<'a> {
             .to_device(latents.device())?
             .to_dtype(latents.dtype())?;
 
-
         let x = latents.broadcast_mul(&std)?;
         let x = x
             .affine((1.0 / scaling_factor) as f64, 0.0)?
@@ -816,7 +815,6 @@ impl<'a> LtxPipeline<'a> {
                     )?
                     .to_dtype(DType::F32)?
             };
-
 
             latents = self.scheduler.step(&noise_pred, t, &latents)?;
 

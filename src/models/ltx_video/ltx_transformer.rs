@@ -16,8 +16,10 @@ pub struct Transformer2DModelOutput {
     pub sample: Tensor,
 }
 
+use serde::{Deserialize, Serialize};
+
 /// Configuration for LtxVideoTransformer3DModel
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LtxVideoTransformer3DModelConfig {
     pub in_channels: usize,
     pub out_channels: usize,
@@ -613,10 +615,15 @@ impl LtxAttention {
                         kk
                     );
                 }
+                // Convert 0/1 mask from tokenizer (where 1 is keep, 0 is mask)
+                // to additive offset (-10000.0 for mask, 0.0 for keep)
+                let mask = (1.0 - attention_mask.to_dtype(DType::F32)?)? * -10000.0;
                 // [B, k_len] -> [B, 1, 1, k_len]
-                let m = attention_mask.unsqueeze(1)?.unsqueeze(1)?;
+                let m = mask?.unsqueeze(1)?.unsqueeze(1)?;
+
                 m.broadcast_as((b, self.heads, q_len, k_len))?.contiguous()
             }
+
             3 => {
                 let (b, one, kk) = attention_mask.dims3()?;
                 if one != 1 || kk != k_len {

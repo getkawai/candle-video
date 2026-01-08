@@ -25,9 +25,9 @@ def main():
     num_frames = 25
     num_inference_steps = 30  # Matching first_pass from config
     guidance_scale = 3.0  # Distilled model uses guidance_scale=1
-    seed = 284607720456150
-    prompt = "A red apple on a wooden table"
-    negative_prompt = "low quality"
+    seed = 1158235855
+    prompt = "A woman with blood on her face and a white tank top looks down and to her right, then back up as she speaks. She has dark hair pulled back, light skin, and her face and chest are covered in blood. The camera angle is a close-up, focused on the woman's face and upper torso. The lighting is dim and blue-toned, creating a somber and intense atmosphere. The scene appears to be from a movie or TV show."
+    negative_prompt = ""
     
     print(f"\nParameters:")
     print(f"  transformer: {model_dir}/transformer")

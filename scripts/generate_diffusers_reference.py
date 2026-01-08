@@ -92,7 +92,7 @@ pipe = LTXPipeline.from_pretrained(
 ).to(device)
 
 # --- Generate Deterministic Latents ---
-seed = 42
+seed = 1158235855
 rng = Pcg32(seed, 1442695040888963407)
 
 height = 512

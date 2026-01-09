@@ -686,6 +686,7 @@ impl LtxAttention {
         let scale = 1f32 / (self.head_dim as f32).sqrt();
 
         // Check if we can use Flash Attention
+        #[allow(unused_mut)]
         let mut use_flash = false;
         #[cfg(feature = "flash-attn")]
         {

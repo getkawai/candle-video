@@ -745,6 +745,10 @@ impl<'a> LtxPipeline<'a> {
         let latent_width = width / self.vae_spatial_compression_ratio;
 
         let video_sequence_length = latent_num_frames * latent_height * latent_width;
+        
+        // Check if sigmas were provided before moving
+        let has_custom_sigmas = sigmas_provided.is_some();
+        
         let sigmas = if sigmas_provided.is_none() && timesteps.is_none() {
             Some(linspace(
                 1.0,
@@ -756,7 +760,7 @@ impl<'a> LtxPipeline<'a> {
         };
 
         let scfg = self.scheduler.config().clone();
-        let mu = if sigmas_provided.is_some() {
+        let mu = if has_custom_sigmas {
             0.0 // No additional shift for distilled timesteps
         } else {
             calculate_shift(
@@ -768,7 +772,7 @@ impl<'a> LtxPipeline<'a> {
             )
         };
 
-        if sigmas_provided.is_none() {
+        if !has_custom_sigmas {
             println!(
                 "  Calculated SD3 shift (mu): {:.4} for {} tokens",
                 mu, video_sequence_length

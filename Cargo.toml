@@ -55,6 +55,7 @@ all-gpu = ["flash-attn", "cudnn", "nccl"]
 criterion = { version = "0.8", features = ["html_reports"] }
 tempfile = "3.0"
 bytemuck = "1.0"
+proptest = "1.5"
 
 # =============================================================================
 # Examples

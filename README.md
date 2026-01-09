@@ -9,7 +9,7 @@
 | Model | Video | Prompt |
 | :--- | :---: | :--- |
 | **LTX-Video-0.9.5** | ![Waves and Rocks](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.5/Waves_and_Rocks.gif) | *The waves crash against the jagged rocks of the shoreline, sending spray high into the air. The rocks are a dark gray color, with sharp edges and deep crevices. The water is a clear blue-green, with white foam where the waves break against the rocks. The sky is a light gray, with a few white clouds dotting the horizon.* |
-| **LTX-Video-0.9.8** | ![woman_with_blood](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.8/woman_with_blood.gif) | *A woman with blood on her face and a white tank top looks down and to her right, then back up as she speaks. She has dark hair pulled back, light skin, and her face and chest are covered in blood. The camera angle is a close-up, focused on the woman's face and upper torso. The lighting is dim and blue-toned, creating a somber and intense atmosphere. The scene appears to be from a movie or TV show.* |
+| **LTX-Video-0.9.8-2b-distilled** | ![woman_with_blood](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.8/woman_with_blood.gif) | *A woman with blood on her face and a white tank top looks down and to her right, then back up as she speaks. She has dark hair pulled back, light skin, and her face and chest are covered in blood. The camera angle is a close-up, focused on the woman's face and upper torso. The lighting is dim and blue-toned, creating a somber and intense atmosphere. The scene appears to be from a movie or TV show.* |
 | **Stable Diffusion Video** | *in the process of implementation...* | *in the process of implementation...* |
 | **Wan2.1/2.2** | *in plans...* |  *in plans...* |
 
@@ -118,21 +118,23 @@ See [examples/ltx-video](examples/ltx-video/README.md) for more details.
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--prompt` | "A video of a cute cat..." | Text prompt for generation |
-| `--negative-prompt` | "low quality, worst quality..." | Negative prompt |
+| `--negative-prompt` | "" | Negative prompt |
 | `--height` | 512 | Video height (must be divisible by 32) |
 | `--width` | 768 | Video width (must be divisible by 32) |
 | `--num-frames` | 97 | Number of frames (should be 8n + 1) |
-| `--steps` | 30 | Diffusion steps |
-| `--guidance-scale` | 3.0 | Classifier-free guidance scale |
-| `--local-weights` | (None) | Path to local model weights (required) |
+| `--steps` | (from version config) | Diffusion steps (40 for 0.9.5, 8 for distilled) |
+| `--guidance-scale` | (from version config) | Classifier-free guidance scale |
+| `--ltxv-version` | "0.9.5" | Model version (0.9.5, 0.9.6-distilled, 0.9.8-2b-distilled, etc.) |
+| `--local-weights` | (None) | Path to local weights (auto-downloads if not set) |
 | `--output-dir` | "output" | Directory to save results |
 | `--seed` | random | Random seed for reproducibility |
 | `--vae-tiling` | false | Enable VAE tiling for memory efficiency |
 | `--vae-slicing` | false | Enable VAE batch slicing |
 | `--frames` | false | Save individual PNG frames (disables GIF) |
-| `--gif` | true | Save as animated GIF (default) |
 | `--cpu` | false | Run on CPU instead of GPU |
 | `--model-id` | "Lightricks/LTX-Video" | HF model ID (for tokenizer download) |
+| `--use-bf16-t5` | false | Use BF16 T5 instead of GGUF quantized |
+| `--unified-weights` | (None) | Path to unified safetensors file (official LTX format) |
 
 ### Library Usage
 

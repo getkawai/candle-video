@@ -9,7 +9,7 @@
 | Модель | Видео | Промпт |
 | :--- | :---: | :--- |
 | **LTX-Video-0.9.5** | ![Waves and Rocks](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.5/Waves_and_Rocks.gif) | *The waves crash against the jagged rocks of the shoreline, sending spray high into the air. The rocks are a dark gray color, with sharp edges and deep crevices. The water is a clear blue-green, with white foam where the waves break against the rocks. The sky is a light gray, with a few white clouds dotting the horizon.* |
-| **LTX-Video-0.9.8** | ![woman_with_blood](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.8/woman_with_blood.gif) | *A woman with blood on her face and a white tank top looks down and to her right, then back up as she speaks. She has dark hair pulled back, light skin, and her face and chest are covered in blood. The camera angle is a close-up, focused on the woman's face and upper torso. The lighting is dim and blue-toned, creating a somber and intense atmosphere. The scene appears to be from a movie or TV show.* |
+| **LTX-Video-0.9.8-2b-distilled** | ![woman_with_blood](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.8/woman_with_blood.gif) | *A woman with blood on her face and a white tank top looks down and to her right, then back up as she speaks. She has dark hair pulled back, light skin, and her face and chest are covered in blood. The camera angle is a close-up, focused on the woman's face and upper torso. The lighting is dim and blue-toned, creating a somber and intense atmosphere. The scene appears to be from a movie or TV show.* |
 | **Stable Diffusion Video** | *в процессе реализации...* | *в процессе реализации...* |
 | **Wan2.1/2.2** | *в планах...* | *в планах...* |
 
@@ -107,21 +107,23 @@ cargo run --example ltx-video --release --features flash-attn,cudnn -- \
 | Аргумент | По умолчанию | Описание |
 |----------|--------------|----------|
 | `--prompt` | "A video of a cute cat..." | Текстовый промпт |
-| `--negative-prompt` | "low quality, worst quality..." | Негативный промпт |
+| `--negative-prompt` | "" | Негативный промпт |
 | `--height` | 512 | Высота (должна быть кратна 32) |
 | `--width` | 768 | Ширина (должна быть кратна 32) |
 | `--num-frames` | 97 | Количество кадров (формат 8n + 1) |
-| `--steps` | 30 | Количество шагов диффузии |
-| `--guidance-scale` | 3.0 | Масштаб classifier-free guidance |
-| `--local-weights` | (Нет) | Путь к локальным весам (обязателен) |
+| `--steps` | (из конфига версии) | Шаги диффузии (40 для 0.9.5, 8 для distilled) |
+| `--guidance-scale` | (из конфига версии) | Масштаб classifier-free guidance |
+| `--ltxv-version` | "0.9.5" | Версия модели (0.9.5, 0.9.6-distilled, 0.9.8-2b-distilled и др.) |
+| `--local-weights` | (Нет) | Путь к локальным весам (авто-скачивание если не указан) |
 | `--output-dir` | "output" | Директория для сохранения результатов |
 | `--seed` | случайный | Сид для воспроизводимости |
 | `--vae-tiling` | false | Включить тайлинг VAE для экономии памяти |
 | `--vae-slicing` | false | Включить слайсинг VAE для батчей |
 | `--frames` | false | Сохранять PNG кадры (отключает GIF) |
-| `--gif` | true | Сохранить как анимированный GIF (по умолчанию) |
 | `--cpu` | false | Запуск на CPU вместо GPU |
 | `--model-id` | "Lightricks/LTX-Video" | ID модели HF (для скачивания токенизатора) |
+| `--use-bf16-t5` | false | Использовать BF16 T5 вместо GGUF квантизированного |
+| `--unified-weights` | (Нет) | Путь к unified safetensors файлу (официальный формат LTX) |
 
 ### Использование как библиотеки
 

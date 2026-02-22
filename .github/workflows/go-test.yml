@@ -71,3 +71,12 @@ jobs:
         env:
           CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/${{ matrix.lib_path }}
         run: go test ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run race test (ubuntu only)
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/${{ matrix.lib_path }}
+        run: go test -race ./...

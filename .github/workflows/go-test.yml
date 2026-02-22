@@ -21,8 +21,18 @@ on:
 
 jobs:
   test-go:
-    name: test-go (hosted-cpu)
-    runs-on: ubuntu-latest
+    name: test-go (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: libcandle_video-linux-amd64.tar.gz
+            lib_path: target/release/libcandle_video.so
+          - os: windows-latest
+            asset: libcandle_video-windows-amd64.tar.gz
+            lib_path: target\\release\\candle_video.dll
 
     defaults:
       run:
@@ -36,11 +46,11 @@ jobs:
         uses: robinraju/release-downloader@v1.11
         with:
           latest: true
-          fileName: "libcandle_video-linux-amd64.tar.gz"
+          fileName: ${{ matrix.asset }}
           out-file-path: target/release
 
       - name: Extract libcandle_video archive
-        run: tar -xzf ../target/release/libcandle_video-linux-amd64.tar.gz -C ../target/release
+        run: tar -xzf ../target/release/${{ matrix.asset }} -C ../target/release
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -52,7 +62,7 @@ jobs:
 
       - name: Run tests
         env:
-          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so
+          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/${{ matrix.lib_path }}
         run: go test ./...
 
   test-go-gpu:

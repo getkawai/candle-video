@@ -1,12 +1,6 @@
-//go:build darwin || linux
+//go:build windows
 
 package candlevideo
-
-/*
-#include <stdlib.h>
-#include "candle.h"
-*/
-import "C"
 
 import (
 	"context"
@@ -34,11 +28,9 @@ func Generate(ctx context.Context, repoDir string, opts GenerateOptions) error {
 		return fmt.Errorf("marshal options: %w", err)
 	}
 
-	cCfg := C.CString(string(payload))
-	defer C.free(unsafe.Pointer(cCfg))
-
-	ret := C.call_candle_video_generate(fnGenerate, cCfg)
-	if ret != 0 {
+	buf := append(payload, 0)
+	ret, _, _ := fnGenerate.Call(uintptr(unsafe.Pointer(&buf[0])))
+	if int32(ret) != 0 {
 		return fmt.Errorf("video generation failed: %s", lastError())
 	}
 

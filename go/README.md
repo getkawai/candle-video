@@ -13,10 +13,12 @@ cargo build --release
 Library output:
 - macOS: `target/release/libcandle_video.dylib`
 - Linux: `target/release/libcandle_video.so`
+- Windows: `target/release/candle_video.dll`
 
 Prebuilt binaries are also published in GitHub Releases:
 - `libcandle_video-darwin-arm64.tar.gz`
 - `libcandle_video-linux-amd64.tar.gz`
+- `libcandle_video-windows-amd64.tar.gz`
 
 You can override path with env var:
 

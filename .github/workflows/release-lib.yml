@@ -28,6 +28,9 @@ jobs:
           - os: macos-latest
             target: darwin-arm64
             lib_name: libcandle_video.dylib
+          - os: windows-latest
+            target: windows-amd64
+            lib_name: candle_video.dll
 
     steps:
       - name: Checkout
@@ -43,12 +46,12 @@ jobs:
         run: cargo build --release
 
       - name: Package library
+        shell: bash
         run: |
           mkdir -p dist
           cp target/release/${{ matrix.lib_name }} dist/${{ matrix.lib_name }}
           cd dist
           tar -czf libcandle_video-${{ matrix.target }}.tar.gz ${{ matrix.lib_name }}
-          shasum -a 256 libcandle_video-${{ matrix.target }}.tar.gz > libcandle_video-${{ matrix.target }}.tar.gz.sha256
           rm -f ${{ matrix.lib_name }}
 
       - name: Upload build artifact

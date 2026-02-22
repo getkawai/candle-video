@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -22,15 +23,28 @@ func TestGenerateE2EFromHuggingFace(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Minute)
 	defer cancel()
 
+	cpu := true
+	if v := os.Getenv("CANDLE_VIDEO_E2E_CPU"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			cpu = parsed
+		}
+	}
+
+	modelID := os.Getenv("CANDLE_VIDEO_E2E_MODEL_ID")
+	if modelID == "" {
+		modelID = "oxide-lab/LTX-Video-0.9.8-2B-distilled"
+	}
+
 	err := Generate(ctx, repoDir, GenerateOptions{
 		Prompt:    "A short cinematic shot of ocean waves at sunset",
+		ModelID:   modelID,
 		OutputDir: outputDir,
-		Height:    256,
-		Width:     256,
-		NumFrames: 17,
+		Height:    128,
+		Width:     128,
+		NumFrames: 9,
 		Steps:     1,
 		GIF:       true,
-		CPU:       false,
+		CPU:       cpu,
 	})
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)

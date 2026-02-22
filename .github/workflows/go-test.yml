@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       run_hf_e2e:
-        description: "Run real Hugging Face end-to-end generation test on self-hosted CUDA runner"
+        description: "Run real Hugging Face end-to-end generation test on CPU runner"
         required: false
         type: boolean
         default: false
@@ -179,9 +179,9 @@ jobs:
           test -s "/tmp/hf-smoke/${file##*/}"
 
   hf-e2e-generate:
-    name: hf-e2e-generate (self-hosted-cuda)
+    name: hf-e2e-generate (cpu)
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_hf_e2e == true }}
-    runs-on: [self-hosted, linux, x64, cuda]
+    runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
       - name: Checkout
@@ -207,5 +207,6 @@ jobs:
           CANDLE_VIDEO_RUN_HF_E2E: "1"
           CANDLE_VIDEO_REPO_DIR: ${{ github.workspace }}
           CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so
+          CANDLE_VIDEO_E2E_CPU: "true"
         working-directory: go
         run: go test ./candlevideo -run TestGenerateE2EFromHuggingFace -v -timeout 120m

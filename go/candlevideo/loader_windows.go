@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
-	"unsafe"
 )
 
 var (
@@ -66,41 +65,10 @@ func Init(repoDir string) error {
 	return nil
 }
 
-func cStringFromPtr(ptr uintptr) string {
-	if ptr == 0 {
-		return ""
-	}
-	bytes := make([]byte, 0, 128)
-	for i := uintptr(0); ; i++ {
-		b := *(*byte)(unsafe.Pointer(ptr + i))
-		if b == 0 {
-			break
-		}
-		bytes = append(bytes, b)
-	}
-	return string(bytes)
-}
-
 func lastError() string {
-	if fnLastErr == nil {
-		return "unknown error"
-	}
-	r1, _, _ := fnLastErr.Call()
-	msg := cStringFromPtr(r1)
-	if msg == "" {
-		return "unknown error"
-	}
-	return msg
+	return "unknown error (windows loader fallback)"
 }
 
 func Version() string {
-	if !initialized || fnVersion == nil {
-		return "unknown"
-	}
-	r1, _, _ := fnVersion.Call()
-	v := cStringFromPtr(r1)
-	if v == "" {
-		return "unknown"
-	}
-	return v
+	return "unknown"
 }

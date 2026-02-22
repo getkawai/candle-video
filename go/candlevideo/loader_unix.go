@@ -61,6 +61,9 @@ func Init(repoDir string) error {
 	}
 
 	libPath := os.Getenv("CANDLE_VIDEO_LIB_PATH")
+	if override := getLibraryPathOverride(); override != "" {
+		libPath = override
+	}
 	if libPath == "" {
 		libPath = defaultLibPath(repoDir)
 	}

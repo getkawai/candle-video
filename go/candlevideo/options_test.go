@@ -71,3 +71,27 @@ func TestGenerateOptionsNormalizePreservesProvidedValues(t *testing.T) {
 		t.Fatal("GIF should stay false when Frames is true")
 	}
 }
+
+func TestGenerateOptionsNormalizeUsesGlobalModelPathOverride(t *testing.T) {
+	SetModelPath("/models/ltx-video")
+	defer SetModelPath("")
+
+	opts := GenerateOptions{}
+	opts.normalize()
+
+	if opts.LocalWeights != "/models/ltx-video" {
+		t.Fatalf("expected LocalWeights from override, got %q", opts.LocalWeights)
+	}
+}
+
+func TestGenerateOptionsNormalizePrefersExplicitLocalWeights(t *testing.T) {
+	SetModelPath("/models/ltx-video")
+	defer SetModelPath("")
+
+	opts := GenerateOptions{LocalWeights: "/custom/models"}
+	opts.normalize()
+
+	if opts.LocalWeights != "/custom/models" {
+		t.Fatalf("explicit LocalWeights should win, got %q", opts.LocalWeights)
+	}
+}

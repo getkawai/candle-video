@@ -24,6 +24,12 @@ type GenerateOptions struct {
 }
 
 func (o *GenerateOptions) normalize() {
+	if o.LocalWeights == "" {
+		if override := getModelPathOverride(); override != "" {
+			o.LocalWeights = override
+		}
+	}
+
 	if o.Prompt == "" {
 		o.Prompt = "A video of a cute cat playing with a yarn ball"
 	}

@@ -22,10 +22,22 @@ Prebuilt binaries are also published in GitHub Releases:
 
 Production releases are published from Git tags (`v*`) via GitHub Actions.
 
-You can override path with env var:
+## Library path resolution
+
+Path library native diselesaikan dengan urutan prioritas berikut:
+1. `candlevideo.SetLibraryPath(...)`
+2. environment variable `CANDLE_VIDEO_LIB_PATH`
+3. default path dari `repoDir` (`target/release/...`)
+
+Path model lokal diselesaikan dengan urutan prioritas berikut:
+1. `GenerateOptions.LocalWeights` (explicit per call)
+2. `candlevideo.SetModelPath(...)`
+3. fallback ke `ModelID` (download/resolve model)
+
+Override via environment variable:
 
 ```bash
-export CANDLE_VIDEO_LIB_PATH=/absolute/path/to/libcandle_video.dylib
+export CANDLE_VIDEO_LIB_PATH=/absolute/path/to/libcandle_video.so
 ```
 
 CI production gates:
@@ -40,13 +52,22 @@ CI production gates:
 cd go
 go run ./examples/ltx-video \
   --repo ../ \
-  --weights /path/to/models/ltx-video \
+  --lib-path ../target/release/libcandle_video.so \
+  --model-path /path/to/models/ltx-video \
   --output ./output
 ```
+
+`--lib-path` akan mengisi `CANDLE_VIDEO_LIB_PATH` dari input CLI.
+`--model-path` akan mengisi override model path (`candlevideo.SetModelPath`).
 
 ## Programmatic usage
 
 ```go
+import "github.com/getkawai/candle-video/go/candlevideo"
+
+candlevideo.SetLibraryPath("/absolute/path/to/libcandle_video.so")
+candlevideo.SetModelPath("/absolute/path/to/models/ltx-video")
+
 err := candlevideo.Generate(context.Background(), "/path/to/candle-video", candlevideo.GenerateOptions{
     Prompt:       "A cinematic drone shot of a waterfall in Iceland",
     LocalWeights: "/path/to/models/ltx-video",

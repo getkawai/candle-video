@@ -32,15 +32,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build Rust cdylib
-        run: cargo build --release
-        working-directory: ${{ github.workspace }}
+      - name: Download latest libcandle_video release asset
+        uses: robinraju/release-downloader@v1.11
+        with:
+          latest: true
+          fileName: "libcandle_video.so-linux-amd64"
+          out-file-path: target/release
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -52,7 +49,7 @@ jobs:
 
       - name: Run tests
         env:
-          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so
+          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so-linux-amd64
         run: go test ./...
 
   test-go-gpu:

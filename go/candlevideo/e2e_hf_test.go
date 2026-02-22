@@ -19,7 +19,14 @@ func TestGenerateE2EFromHuggingFace(t *testing.T) {
 		t.Fatal("CANDLE_VIDEO_REPO_DIR is required")
 	}
 
-	outputDir := filepath.Join(t.TempDir(), "output")
+	outputDir := os.Getenv("CANDLE_VIDEO_E2E_OUTPUT_DIR")
+	if outputDir == "" {
+		outputDir = filepath.Join(t.TempDir(), "output")
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Minute)
 	defer cancel()
 

@@ -47,6 +47,7 @@ CI production gates:
 - Consumer smoke test against latest released `libcandle_video-linux-amd64.tar.gz`.
 - Hugging Face download smoke (`model_index.json` dari `oxide-lab/LTX-Video-0.9.8-2B-distilled`).
 - Optional real E2E generate from Hugging Face via workflow dispatch (`run_hf_e2e=true`) on CPU runner (`ubuntu-latest`).
+  Hasil video E2E di-upload sebagai artifact `hf-e2e-generated-video` pada run Actions.
 
 ## Run Go example
 

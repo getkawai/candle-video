@@ -208,5 +208,14 @@ jobs:
           CANDLE_VIDEO_REPO_DIR: ${{ github.workspace }}
           CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so
           CANDLE_VIDEO_E2E_CPU: "true"
+          CANDLE_VIDEO_E2E_OUTPUT_DIR: ${{ github.workspace }}/go/e2e-output
         working-directory: go
         run: go test ./candlevideo -run TestGenerateE2EFromHuggingFace -v -timeout 120m
+
+      - name: Upload generated E2E video artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hf-e2e-generated-video
+          path: go/e2e-output/**
+          if-no-files-found: warn

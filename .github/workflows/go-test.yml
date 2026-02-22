@@ -50,6 +50,15 @@ jobs:
         run: cargo build --release
         working-directory: ${{ github.workspace }}
 
+      - name: Verify required FFI symbols (linux)
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        shell: bash
+        run: |
+          nm -D "${{ github.workspace }}/target/release/libcandle_video.so" | grep -q "candle_video_generate"
+          nm -D "${{ github.workspace }}/target/release/libcandle_video.so" | grep -q "candle_last_error"
+          nm -D "${{ github.workspace }}/target/release/libcandle_video.so" | grep -q "candle_binding_version"
+          nm -D "${{ github.workspace }}/target/release/libcandle_video.so" | grep -q "candle_healthcheck"
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:

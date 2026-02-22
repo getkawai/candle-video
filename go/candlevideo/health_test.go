@@ -16,6 +16,6 @@ func TestRealLibraryHealthcheck(t *testing.T) {
 	}
 
 	if !Healthcheck() {
-		t.Skip("healthcheck symbol is not available in the loaded library")
+		t.Fatal("Healthcheck failed")
 	}
 }

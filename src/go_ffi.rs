@@ -224,7 +224,8 @@ fn run_generation(cfg: VideoGenerateConfig) -> anyhow::Result<()> {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         now.as_secs() ^ (now.subsec_nanos() as u64)
     });
-    device.set_seed(seed)?;
+    // Some backends (notably CPU) do not support explicit seed configuration.
+    let _ = device.set_seed(seed);
 
     let dtype = DType::BF16;
 

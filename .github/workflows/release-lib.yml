@@ -74,5 +74,4 @@ jobs:
           tag_name: ${{ github.event.inputs.tag || format('auto-{0}-{1}', github.run_number, github.sha) }}
           target_commitish: ${{ github.sha }}
           name: ${{ format('Auto Release {0}', github.sha) }}
-          prerelease: true
           files: dist/*

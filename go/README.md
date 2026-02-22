@@ -2,6 +2,39 @@
 
 Native Go binding for `candle-video` using Rust FFI (`cdylib`) + `dlopen/dlsym`.
 
+## Download sources (jelas)
+
+### Native library (`libcandle_video`)
+
+Download dari GitHub Releases:
+- Release page: `https://github.com/getkawai/candle-video/releases`
+- Latest release saat ini: `https://github.com/getkawai/candle-video/releases/tag/auto-13-5b2541a51fd2585b85b84b8e2527abd91143f8a8`
+
+Direct download:
+- Linux AMD64: `https://github.com/getkawai/candle-video/releases/download/auto-13-5b2541a51fd2585b85b84b8e2527abd91143f8a8/libcandle_video-linux-amd64.tar.gz`
+- macOS ARM64: `https://github.com/getkawai/candle-video/releases/download/auto-13-5b2541a51fd2585b85b84b8e2527abd91143f8a8/libcandle_video-darwin-arm64.tar.gz`
+- Windows AMD64: `https://github.com/getkawai/candle-video/releases/download/auto-13-5b2541a51fd2585b85b84b8e2527abd91143f8a8/libcandle_video-windows-amd64.tar.gz`
+
+Contoh Linux:
+
+```bash
+mkdir -p /opt/candle-video/lib
+curl -fL "https://github.com/getkawai/candle-video/releases/download/auto-13-5b2541a51fd2585b85b84b8e2527abd91143f8a8/libcandle_video-linux-amd64.tar.gz" -o /tmp/libcandle_video-linux-amd64.tar.gz
+tar -xzf /tmp/libcandle_video-linux-amd64.tar.gz -C /opt/candle-video/lib
+```
+
+### Model weights
+
+Download dari Hugging Face model repo:
+- `https://huggingface.co/oxide-lab/LTX-Video-0.9.8-2B-distilled`
+
+Contoh clone semua file model:
+
+```bash
+git lfs install
+git clone https://huggingface.co/oxide-lab/LTX-Video-0.9.8-2B-distilled /opt/candle-video/models/LTX-Video-0.9.8-2B-distilled
+```
+
 ## Build Rust shared library
 
 Run from repository root:
@@ -62,6 +95,38 @@ go run ./examples/ltx-video \
 
 `--lib-path` akan mengisi `CANDLE_VIDEO_LIB_PATH` dari input CLI.
 `--model-path` akan mengisi override model path (`candlevideo.SetModelPath`).
+
+## High-end consumer computer (quality profile)
+
+Untuk PC/laptop high-end (contoh RTX 4080/4090, RAM 32GB+, NVMe), gunakan GPU (`CPU=false`) dan parameter lebih tinggi:
+
+- Resolusi: `768x768` sampai `1024x576`
+- Frames: `49` sampai `97`
+- Steps: `12` sampai `24`
+- Simpan model lokal (`LocalWeights`) agar tidak download ulang
+
+Contoh kode:
+
+```go
+candlevideo.SetLibraryPath("/absolute/path/to/libcandle_video.so")
+candlevideo.SetModelPath("/absolute/path/to/models/ltx-video")
+
+err := candlevideo.Generate(context.Background(), "/path/to/candle-video", candlevideo.GenerateOptions{
+    Prompt:       "A cinematic aerial shot of a futuristic city at golden hour",
+    OutputDir:    "./output-high",
+    Height:       768,
+    Width:        768,
+    NumFrames:    97,
+    Steps:        16,
+    GuidanceScale: 3.0,
+    GIF:          true,
+    CPU:          false,
+})
+```
+
+Catatan:
+- Jika VRAM tidak cukup, turunkan urutan ini: `NumFrames` -> `Height/Width` -> `Steps`.
+- Untuk output terbaik, jalankan job ini di mesin lokal/GPU dedicated, bukan CPU-only CI.
 
 ## Programmatic usage
 

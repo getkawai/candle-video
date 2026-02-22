@@ -227,7 +227,7 @@ fn run_generation(cfg: VideoGenerateConfig) -> anyhow::Result<()> {
     // Some backends (notably CPU) do not support explicit seed configuration.
     let _ = device.set_seed(seed);
 
-    let dtype = DType::BF16;
+    let dtype = if cfg.cpu { DType::F32 } else { DType::BF16 };
 
     let (transformer_file, vae_file, t5_file, tokenizer_file) =
         if let Some(local_path) = &cfg.local_weights {

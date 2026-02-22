@@ -166,10 +166,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/hf-smoke
+          model="oxide-lab/LTX-Video-0.9.8-2B-distilled"
+          api="https://huggingface.co/api/models/${model}"
+          file="$(curl -fsSL "$api" | jq -r '.siblings[]?.rfilename | select(test("(^README\\.md$|model_index\\.json$|config\\.json$)"))' | head -n1)"
+          if [ -z "$file" ] || [ "$file" = "null" ]; then
+            echo "no downloadable metadata file found for ${model}"
+            exit 1
+          fi
           curl -fL --retry 3 --retry-delay 2 \
-            "https://huggingface.co/oxide-lab/LTX-Video-0.9.8-2B-distilled/resolve/main/model_index.json" \
-            -o /tmp/hf-smoke/model_index.json
-          test -s /tmp/hf-smoke/model_index.json
+            "https://huggingface.co/${model}/resolve/main/${file}" \
+            -o "/tmp/hf-smoke/${file##*/}"
+          test -s "/tmp/hf-smoke/${file##*/}"
 
   hf-e2e-generate:
     name: hf-e2e-generate (self-hosted-cuda)

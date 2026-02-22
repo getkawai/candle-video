@@ -58,6 +58,7 @@ jobs:
           go-version-file: go/go.mod
 
       - name: Check formatting
+        if: ${{ matrix.os != 'windows-latest' }}
         shell: bash
         run: |
           out="$(gofmt -l .)"

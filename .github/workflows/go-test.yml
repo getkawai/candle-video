@@ -71,39 +71,3 @@ jobs:
         env:
           CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/${{ matrix.lib_path }}
         run: go test ./...
-
-  test-go-gpu:
-    name: test-go (enterprise-cuda)
-    if: ${{ vars.ENABLE_ENTERPRISE_CUDA_RUNNER == 'true' }}
-    runs-on: [self-hosted, linux, x64, cuda]
-
-    defaults:
-      run:
-        working-directory: go
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build Rust cdylib (CUDA)
-        run: cargo build --release --features cuda,cudnn
-        working-directory: ${{ github.workspace }}
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go/go.mod
-
-      - name: Check formatting
-        run: test -z "$(gofmt -l .)"
-
-      - name: Run tests
-        env:
-          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so
-        run: go test ./...

@@ -11,7 +11,9 @@ import (
 
 // Generate executes native Rust pipeline via shared-library FFI.
 func Generate(ctx context.Context, repoDir string, opts GenerateOptions) error {
-	_ = ctx
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	opts.normalize()
 
@@ -26,6 +28,10 @@ func Generate(ctx context.Context, repoDir string, opts GenerateOptions) error {
 	payload, err := json.Marshal(opts)
 	if err != nil {
 		return fmt.Errorf("marshal options: %w", err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	return generateFromJSONPayload(payload)

@@ -21,6 +21,9 @@ func TestFFIContractWithRealLibrary(t *testing.T) {
 	if Version() == "unknown" {
 		t.Fatal("Version should not be unknown after successful Init")
 	}
+	if !IsBindingVersionCompatible(Version()) {
+		t.Fatalf("incompatible binding version: %q", Version())
+	}
 
 	err := generateFromJSONPayload([]byte("{invalid-json"))
 	if err == nil {

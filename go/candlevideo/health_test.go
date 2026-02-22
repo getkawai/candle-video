@@ -18,4 +18,8 @@ func TestRealLibraryHealthcheck(t *testing.T) {
 	if !Healthcheck() {
 		t.Fatal("Healthcheck failed")
 	}
+
+	if !IsBindingVersionCompatible(Version()) {
+		t.Fatalf("incompatible binding version: %q", Version())
+	}
 }

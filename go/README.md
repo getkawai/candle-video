@@ -28,6 +28,12 @@ You can override path with env var:
 export CANDLE_VIDEO_LIB_PATH=/absolute/path/to/libcandle_video.dylib
 ```
 
+CI production gates:
+- ABI symbol verification on Linux.
+- Go test + vet + race (Linux) and test + vet (Windows).
+- `govulncheck` on Go module.
+- Consumer smoke test against latest released `libcandle_video-linux-amd64.tar.gz`.
+
 ## Run Go example
 
 ```bash

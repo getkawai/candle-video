@@ -110,3 +110,41 @@ jobs:
         env:
           CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/${{ matrix.lib_path }}
         run: go test -race ./...
+
+  release-consumer-smoke:
+    name: release-consumer-smoke (ubuntu)
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    needs: test-go
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - name: Download latest Linux release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_url="https://api.github.com/repos/${{ github.repository }}/releases/latest"
+          asset_url="$(curl -fsSL "$api_url" | jq -r '.assets[] | select(.name=="libcandle_video-linux-amd64.tar.gz") | .browser_download_url')"
+          if [ -z "$asset_url" ] || [ "$asset_url" = "null" ]; then
+            echo "latest release asset libcandle_video-linux-amd64.tar.gz not found"
+            exit 1
+          fi
+          mkdir -p .release-lib
+          curl -fL "$asset_url" -o .release-lib/libcandle_video-linux-amd64.tar.gz
+          tar -xzf .release-lib/libcandle_video-linux-amd64.tar.gz -C .release-lib
+
+      - name: Run release-consumer smoke tests
+        env:
+          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/go/.release-lib/libcandle_video.so
+        run: go test ./candlevideo -run 'TestRealLibraryHealthcheck|TestFFIContractWithRealLibrary|TestInitConcurrentCalls'

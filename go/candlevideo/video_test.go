@@ -2,6 +2,7 @@ package candlevideo
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -23,5 +24,15 @@ func TestVersionBeforeInit(t *testing.T) {
 	v := Version()
 	if v == "" {
 		t.Fatal("Version should return a stable fallback when not initialized")
+	}
+}
+
+func TestGenerateHonorsCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := Generate(ctx, ".", GenerateOptions{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context canceled, got: %v", err)
 	}
 }

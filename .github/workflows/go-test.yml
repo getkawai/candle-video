@@ -29,8 +29,10 @@ jobs:
         include:
           - os: ubuntu-latest
             lib_path: target/release/libcandle_video.so
+            needs_rust_build: true
           - os: windows-latest
             lib_path: target\\release\\candle_video.dll
+            needs_rust_build: false
 
     defaults:
       run:
@@ -41,12 +43,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
+        if: ${{ matrix.needs_rust_build }}
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
+        if: ${{ matrix.needs_rust_build }}
         uses: Swatinem/rust-cache@v2
 
       - name: Build Rust cdylib
+        if: ${{ matrix.needs_rust_build }}
         run: cargo build --release
         working-directory: ${{ github.workspace }}
 
@@ -75,8 +80,13 @@ jobs:
           fi
 
       - name: Run tests
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
           CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/${{ matrix.lib_path }}
+        run: go test ./...
+
+      - name: Run tests (windows)
+        if: ${{ matrix.os == 'windows-latest' }}
         run: go test ./...
 
       - name: Run go vet

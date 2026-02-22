@@ -45,6 +45,8 @@ CI production gates:
 - Go test + vet + race (Linux) and test + vet (Windows).
 - `govulncheck` on Go module.
 - Consumer smoke test against latest released `libcandle_video-linux-amd64.tar.gz`.
+- Hugging Face download smoke (`model_index.json` dari `oxide-lab/LTX-Video-0.9.8-2B-distilled`).
+- Optional real E2E generate from Hugging Face via workflow dispatch (`run_hf_e2e=true`) on runner `self-hosted,linux,x64,cuda`.
 
 ## Run Go example
 

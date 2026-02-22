@@ -15,15 +15,16 @@ func main() {
 	weights := flag.String("weights", "", "Path to local model directory (required for offline use)")
 	unified := flag.String("unified", "", "Path to unified safetensors file (optional)")
 	output := flag.String("output", "output", "Output directory")
+	cpu := flag.Bool("cpu", false, "Run on CPU")
 	flag.Parse()
 
-	err := candlevideo.Generate(context.Background(), candlevideo.GenerateOptions{
-		RepoDir:        *repoDir,
+	err := candlevideo.Generate(context.Background(), *repoDir, candlevideo.GenerateOptions{
 		Prompt:         *prompt,
 		LocalWeights:   *weights,
 		UnifiedWeights: *unified,
 		OutputDir:      *output,
 		GIF:            true,
+		CPU:            *cpu,
 	})
 	if err != nil {
 		log.Fatal(err)

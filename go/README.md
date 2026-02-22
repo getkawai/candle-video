@@ -1,20 +1,26 @@
-# candle-video Go wrapper
+# candle-video Go binding
 
-This directory provides a small Go API for running the Rust LTX-Video pipeline from Go.
+Native Go binding for `candle-video` using Rust FFI (`cdylib`) + `dlopen/dlsym`.
 
-It wraps the existing Rust example command:
+## Build Rust shared library
+
+Run from repository root:
 
 ```bash
-cargo run --example ltx-video --release -- ...
+cargo build --release
 ```
 
-## Requirements
+Library output:
+- macOS: `target/release/libcandle_video.dylib`
+- Linux: `target/release/libcandle_video.so`
 
-- Go 1.24+
-- Rust toolchain + cargo
-- Model weights (local path recommended)
+You can override path with env var:
 
-## Quick start
+```bash
+export CANDLE_VIDEO_LIB_PATH=/absolute/path/to/libcandle_video.dylib
+```
+
+## Run Go example
 
 ```bash
 cd go
@@ -27,17 +33,10 @@ go run ./examples/ltx-video \
 ## Programmatic usage
 
 ```go
-err := candlevideo.Generate(context.Background(), candlevideo.GenerateOptions{
-    RepoDir:      "/path/to/candle-video",
+err := candlevideo.Generate(context.Background(), "/path/to/candle-video", candlevideo.GenerateOptions{
     Prompt:       "A cinematic drone shot of a waterfall in Iceland",
     LocalWeights: "/path/to/models/ltx-video",
     OutputDir:    "./output",
     GIF:          true,
 })
 ```
-
-## Notes
-
-- `Height` and `Width` must be divisible by 32.
-- This wrapper executes `cargo` as a subprocess and forwards CLI args.
-- For production, you can replace this with direct FFI/cgo binding later.

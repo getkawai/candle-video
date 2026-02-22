@@ -32,6 +32,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Rust cdylib
+        run: cargo build --release
+        working-directory: ${{ github.workspace }}
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -41,4 +51,6 @@ jobs:
         run: test -z "$(gofmt -l .)"
 
       - name: Run tests
+        env:
+          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/${{ startsWith(matrix.os, 'macos') && 'libcandle_video.dylib' || 'libcandle_video.so' }}
         run: go test ./...

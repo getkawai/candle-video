@@ -10,6 +10,7 @@ repository = "https://github.com/kawai-network/candle"
 [lib]
 name = "candle_video"
 path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 candle-core = { version = "0.9.2", features = ["cuda", "cudnn"] }

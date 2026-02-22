@@ -1,45 +1,50 @@
 package candlevideo
 
+/*
+#include <stdlib.h>
+#include "candle.h"
+*/
+import "C"
+
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"os/exec"
-	"path/filepath"
-	"strconv"
+	"unsafe"
 )
 
-// GenerateOptions maps to candle-video ltx-video example flags.
+// GenerateOptions maps to Rust FFI JSON config.
 type GenerateOptions struct {
-	RepoDir        string
-	Prompt         string
-	NegativePrompt string
-	LocalWeights   string
-	UnifiedWeights string
-	OutputDir      string
-	LTXVersion     string
-	Height         int
-	Width          int
-	NumFrames      int
-	Steps          int
-	GuidanceScale  float64
-	CPU            bool
-	Seed           uint64
-	GIF            bool
-	Frames         bool
-	VAETiling      bool
-	VAESlicing     bool
-	UseBF16T5      bool
+	Prompt         string  `json:"prompt"`
+	NegativePrompt string  `json:"negative_prompt,omitempty"`
+	LTXVersion     string  `json:"ltxv_version,omitempty"`
+	ModelID        string  `json:"model_id,omitempty"`
+	LocalWeights   string  `json:"local_weights,omitempty"`
+	UnifiedWeights string  `json:"unified_weights,omitempty"`
+	OutputDir      string  `json:"output_dir,omitempty"`
+	Height         int     `json:"height,omitempty"`
+	Width          int     `json:"width,omitempty"`
+	NumFrames      int     `json:"num_frames,omitempty"`
+	Steps          int     `json:"steps,omitempty"`
+	GuidanceScale  float32 `json:"guidance_scale,omitempty"`
+	CPU            bool    `json:"cpu,omitempty"`
+	Seed           uint64  `json:"seed,omitempty"`
+	GIF            bool    `json:"gif,omitempty"`
+	Frames         bool    `json:"frames,omitempty"`
+	VAETiling      bool    `json:"vae_tiling,omitempty"`
+	VAESlicing     bool    `json:"vae_slicing,omitempty"`
+	UseBF16T5      bool    `json:"use_bf16_t5,omitempty"`
 }
 
 func (o *GenerateOptions) normalize() {
-	if o.RepoDir == "" {
-		o.RepoDir = "."
-	}
 	if o.Prompt == "" {
 		o.Prompt = "A video of a cute cat playing with a yarn ball"
 	}
 	if o.LTXVersion == "" {
 		o.LTXVersion = "0.9.8-2b-distilled"
+	}
+	if o.ModelID == "" {
+		o.ModelID = "oxide-lab/LTX-Video-0.9.8-2B-distilled"
 	}
 	if o.OutputDir == "" {
 		o.OutputDir = "output"
@@ -56,68 +61,37 @@ func (o *GenerateOptions) normalize() {
 	if o.Steps == 0 {
 		o.Steps = 7
 	}
-	if o.GuidanceScale == 0 {
-		o.GuidanceScale = 1.0
+	if !o.GIF && !o.Frames {
+		o.GIF = true
 	}
 }
 
-// Generate runs the Rust example binary via `cargo run --example ltx-video`.
-func Generate(ctx context.Context, opts GenerateOptions) error {
+// Generate executes native Rust pipeline via shared-library FFI.
+func Generate(ctx context.Context, repoDir string, opts GenerateOptions) error {
+	_ = ctx
+
 	opts.normalize()
 
 	if opts.Height%32 != 0 || opts.Width%32 != 0 {
 		return fmt.Errorf("height and width must be divisible by 32")
 	}
 
-	repoDir, err := filepath.Abs(opts.RepoDir)
+	if err := Init(repoDir); err != nil {
+		return err
+	}
+
+	payload, err := json.Marshal(opts)
 	if err != nil {
-		return fmt.Errorf("resolve repo dir: %w", err)
+		return fmt.Errorf("marshal options: %w", err)
 	}
 
-	args := []string{"run", "--example", "ltx-video", "--release", "--", "--prompt", opts.Prompt,
-		"--negative-prompt", opts.NegativePrompt,
-		"--ltxv-version", opts.LTXVersion,
-		"--height", strconv.Itoa(opts.Height),
-		"--width", strconv.Itoa(opts.Width),
-		"--num-frames", strconv.Itoa(opts.NumFrames),
-		"--steps", strconv.Itoa(opts.Steps),
-		"--guidance-scale", strconv.FormatFloat(opts.GuidanceScale, 'f', -1, 64),
-		"--output-dir", opts.OutputDir,
+	cCfg := C.CString(string(payload))
+	defer C.free(unsafe.Pointer(cCfg))
+
+	ret := C.call_candle_video_generate(fnGenerate, cCfg)
+	if ret != 0 {
+		return fmt.Errorf("video generation failed: %s", lastError())
 	}
 
-	if opts.LocalWeights != "" {
-		args = append(args, "--local-weights", opts.LocalWeights)
-	}
-	if opts.UnifiedWeights != "" {
-		args = append(args, "--unified-weights", opts.UnifiedWeights)
-	}
-	if opts.CPU {
-		args = append(args, "--cpu")
-	}
-	if opts.Seed != 0 {
-		args = append(args, "--seed", strconv.FormatUint(opts.Seed, 10))
-	}
-	if opts.GIF {
-		args = append(args, "--gif")
-	}
-	if opts.Frames {
-		args = append(args, "--frames")
-	}
-	if opts.VAETiling {
-		args = append(args, "--vae-tiling")
-	}
-	if opts.VAESlicing {
-		args = append(args, "--vae-slicing")
-	}
-	if opts.UseBF16T5 {
-		args = append(args, "--use-bf16-t5")
-	}
-
-	cmd := exec.CommandContext(ctx, "cargo", args...)
-	cmd.Dir = repoDir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("candle-video failed: %w\n%s", err, string(out))
-	}
 	return nil
 }

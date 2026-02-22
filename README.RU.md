@@ -72,8 +72,8 @@
 
 | Модель | Видео | Промпт |
 | :--- | :---: | :--- |
-| **LTX-Video-0.9.5** | ![Waves and Rocks](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.5/Waves_and_Rocks.gif) | *The waves crash against the jagged rocks of the shoreline, sending spray high into the air...* |
-| **LTX-Video-0.9.8-2b-distilled** | ![woman_with_blood](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.8/woman_with_blood.gif) | *A woman with blood on her face and a white tank top looks down and to her right...* |
+| **LTX-Video-0.9.5** | ![Waves and Rocks](https://raw.githubusercontent.com/kawai-network/candle/main/examples/ltx-video/output/0.9.5/Waves_and_Rocks.gif) | *The waves crash against the jagged rocks of the shoreline, sending spray high into the air...* |
+| **LTX-Video-0.9.8-2b-distilled** | ![woman_with_blood](https://raw.githubusercontent.com/kawai-network/candle/main/examples/ltx-video/output/0.9.8/woman_with_blood.gif) | *A woman with blood on her face and a white tank top looks down and to her right...* |
 
 Больше примеров в [examples](examples/).
 
@@ -102,14 +102,14 @@
 
 ```toml
 [dependencies]
-candle-video = { git = "https://github.com/FerrisMind/candle-video" }
+candle-video = { git = "https://github.com/kawai-network/candle" }
 ```
 
 ### Сборка из исходников
 
 ```bash
 # Клонирование репозитория
-git clone https://github.com/FerrisMind/candle-video.git
+git clone https://github.com/kawai-network/candle.git
 cd candle-video
 
 # Сборка по умолчанию (CUDA + cuDNN + Flash Attention)

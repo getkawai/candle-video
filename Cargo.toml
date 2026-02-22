@@ -5,7 +5,7 @@ edition = "2024"
 authors = ["FerrisMind"]
 description = "LTX-Video integration for Candle framework"
 license = "Apache-2.0"
-repository = "https://github.com/FerrisMind/candle-video"
+repository = "https://github.com/kawai-network/candle"
 
 [lib]
 name = "candle_video"

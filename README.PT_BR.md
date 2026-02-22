@@ -74,8 +74,8 @@ Biblioteca Rust para geração de vídeo com IA, construída sobre o framework [
 
 | Modelo | Vídeo | Prompt |
 | :--- | :---: | :--- |
-| **LTX-Video-0.9.5** | ![Waves and Rocks](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.5/Waves_and_Rocks.gif) | *The waves crash against the jagged rocks of the shoreline, sending spray high into the air...* |
-| **LTX-Video-0.9.8-2b-distilled** | ![woman_with_blood](https://raw.githubusercontent.com/FerrisMind/candle-video/main/examples/ltx-video/output/0.9.8/woman_with_blood.gif) | *A woman with blood on her face and a white tank top looks down and to her right...* |
+| **LTX-Video-0.9.5** | ![Waves and Rocks](https://raw.githubusercontent.com/kawai-network/candle/main/examples/ltx-video/output/0.9.5/Waves_and_Rocks.gif) | *The waves crash against the jagged rocks of the shoreline, sending spray high into the air...* |
+| **LTX-Video-0.9.8-2b-distilled** | ![woman_with_blood](https://raw.githubusercontent.com/kawai-network/candle/main/examples/ltx-video/output/0.9.8/woman_with_blood.gif) | *A woman with blood on her face and a white tank top looks down and to her right...* |
 
 Mais exemplos em [examples](examples/).
 
@@ -104,14 +104,14 @@ Mais exemplos em [examples](examples/).
 
 ```toml
 [dependencies]
-candle-video = { git = "https://github.com/FerrisMind/candle-video" }
+candle-video = { git = "https://github.com/kawai-network/candle" }
 ```
 
 ### Compilar a partir do código fonte
 
 ```bash
 # Clonar o repositório
-git clone https://github.com/FerrisMind/candle-video.git
+git clone https://github.com/kawai-network/candle.git
 cd candle-video
 
 # Compilação padrão (CUDA + cuDNN + Flash Attention)

@@ -6,23 +6,23 @@ on:
       - main
     paths:
       - "go/**"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - ".github/workflows/go-test.yml"
   pull_request:
     paths:
       - "go/**"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - ".github/workflows/go-test.yml"
   workflow_dispatch:
 
 jobs:
-  test-go:
-    name: test-go (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
+  test-go-gpu:
+    name: test-go (enterprise-cuda)
+    runs-on: [self-hosted, linux, x64, cuda]
 
     defaults:
       run:
@@ -38,8 +38,8 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Build Rust cdylib
-        run: cargo build --release
+      - name: Build Rust cdylib (CUDA)
+        run: cargo build --release --features cuda,cudnn
         working-directory: ${{ github.workspace }}
 
       - name: Setup Go
@@ -52,5 +52,5 @@ jobs:
 
       - name: Run tests
         env:
-          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/${{ startsWith(matrix.os, 'macos') && 'libcandle_video.dylib' || 'libcandle_video.so' }}
+          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so
         run: go test ./...

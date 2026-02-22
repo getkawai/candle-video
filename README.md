@@ -286,3 +286,8 @@ candle-video/
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
 Copyright 2025 FerrisMind
+
+## Go Integration
+
+A Go wrapper is available in [`go/`](go/) for calling the `ltx-video` pipeline from Go applications.
+See [`go/README.md`](go/README.md) for usage.

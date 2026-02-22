@@ -44,6 +44,11 @@ pub extern "C" fn candle_binding_version() -> *const c_char {
     VERSION.as_ptr() as *const c_char
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn candle_healthcheck() -> i32 {
+    1
+}
+
 #[derive(Debug, Deserialize)]
 struct VideoGenerateConfig {
     prompt: String,

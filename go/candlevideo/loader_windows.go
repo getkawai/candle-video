@@ -14,6 +14,7 @@ var (
 	dll         *syscall.DLL
 
 	fnGenerate *syscall.Proc
+	fnHealth   *syscall.Proc
 	fnLastErr  *syscall.Proc
 	fnVersion  *syscall.Proc
 )
@@ -54,6 +55,9 @@ func Init(repoDir string) error {
 	if fnGenerate, err = loadProc("candle_video_generate"); err != nil {
 		return err
 	}
+	if fnHealth, err = loadProc("candle_healthcheck"); err != nil {
+		fnHealth = nil
+	}
 	if fnLastErr, err = loadProc("candle_last_error"); err != nil {
 		return err
 	}
@@ -71,4 +75,12 @@ func lastError() string {
 
 func Version() string {
 	return "unknown"
+}
+
+func Healthcheck() bool {
+	if !initialized || fnHealth == nil {
+		return false
+	}
+	r1, _, _ := fnHealth.Call()
+	return int32(r1) == 1
 }

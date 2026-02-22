@@ -35,6 +35,7 @@ var (
 	dlHandle    unsafe.Pointer
 
 	fnGenerate unsafe.Pointer
+	fnHealth   unsafe.Pointer
 	fnLastErr  unsafe.Pointer
 	fnVersion  unsafe.Pointer
 )
@@ -85,6 +86,9 @@ func Init(repoDir string) error {
 	if fnGenerate, err = load("candle_video_generate"); err != nil {
 		return err
 	}
+	if fnHealth, err = load("candle_healthcheck"); err != nil {
+		fnHealth = nil
+	}
 	if fnLastErr, err = load("candle_last_error"); err != nil {
 		return err
 	}
@@ -116,4 +120,11 @@ func Version() string {
 		return "unknown"
 	}
 	return C.GoString(v)
+}
+
+func Healthcheck() bool {
+	if !initialized || fnHealth == nil {
+		return false
+	}
+	return C.call_candle_healthcheck(fnHealth) == 1
 }

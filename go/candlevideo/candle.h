@@ -4,11 +4,16 @@
 #include <stdint.h>
 
 typedef int32_t (*candle_video_generate_t)(const char* config_json);
+typedef int32_t (*candle_healthcheck_t)();
 typedef const char* (*candle_last_error_t)();
 typedef const char* (*candle_binding_version_t)();
 
 static inline int32_t call_candle_video_generate(void* f, const char* config_json) {
     return ((candle_video_generate_t)f)(config_json);
+}
+
+static inline int32_t call_candle_healthcheck(void* f) {
+    return ((candle_healthcheck_t)f)();
 }
 
 static inline const char* call_candle_last_error(void* f) {

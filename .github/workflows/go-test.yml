@@ -58,7 +58,13 @@ jobs:
           go-version-file: go/go.mod
 
       - name: Check formatting
-        run: test -z "$(gofmt -l .)"
+        shell: bash
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "$out"
+            exit 1
+          fi
 
       - name: Run tests
         env:

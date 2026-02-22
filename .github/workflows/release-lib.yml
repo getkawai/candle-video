@@ -45,9 +45,11 @@ jobs:
       - name: Package library
         run: |
           mkdir -p dist
-          cp target/release/${{ matrix.lib_name }} dist/${{ matrix.lib_name }}-${{ matrix.target }}
+          cp target/release/${{ matrix.lib_name }} dist/${{ matrix.lib_name }}
           cd dist
-          shasum -a 256 ${{ matrix.lib_name }}-${{ matrix.target }} > ${{ matrix.lib_name }}-${{ matrix.target }}.sha256
+          tar -czf libcandle_video-${{ matrix.target }}.tar.gz ${{ matrix.lib_name }}
+          shasum -a 256 libcandle_video-${{ matrix.target }}.tar.gz > libcandle_video-${{ matrix.target }}.tar.gz.sha256
+          rm -f ${{ matrix.lib_name }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

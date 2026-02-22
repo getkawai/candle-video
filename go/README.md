@@ -15,8 +15,8 @@ Library output:
 - Linux: `target/release/libcandle_video.so`
 
 Prebuilt binaries are also published in GitHub Releases:
-- `libcandle_video.dylib-darwin-arm64`
-- `libcandle_video.so-linux-amd64`
+- `libcandle_video-darwin-arm64.tar.gz`
+- `libcandle_video-linux-amd64.tar.gz`
 
 You can override path with env var:
 

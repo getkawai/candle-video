@@ -36,8 +36,11 @@ jobs:
         uses: robinraju/release-downloader@v1.11
         with:
           latest: true
-          fileName: "libcandle_video.so-linux-amd64"
+          fileName: "libcandle_video-linux-amd64.tar.gz"
           out-file-path: target/release
+
+      - name: Extract libcandle_video archive
+        run: tar -xzf ../target/release/libcandle_video-linux-amd64.tar.gz -C ../target/release
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -49,7 +52,7 @@ jobs:
 
       - name: Run tests
         env:
-          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so-linux-amd64
+          CANDLE_VIDEO_LIB_PATH: ${{ github.workspace }}/target/release/libcandle_video.so
         run: go test ./...
 
   test-go-gpu:

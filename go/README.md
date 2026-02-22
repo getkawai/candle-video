@@ -14,6 +14,10 @@ Library output:
 - macOS: `target/release/libcandle_video.dylib`
 - Linux: `target/release/libcandle_video.so`
 
+Prebuilt binaries are also published in GitHub Releases:
+- `libcandle_video.dylib-darwin-arm64`
+- `libcandle_video.so-linux-amd64`
+
 You can override path with env var:
 
 ```bash

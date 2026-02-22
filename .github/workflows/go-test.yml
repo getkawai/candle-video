@@ -28,10 +28,8 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            asset: libcandle_video-linux-amd64.tar.gz
             lib_path: target/release/libcandle_video.so
           - os: windows-latest
-            asset: libcandle_video-windows-amd64.tar.gz
             lib_path: target\\release\\candle_video.dll
 
     defaults:
@@ -42,15 +40,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download latest libcandle_video release asset
-        uses: robinraju/release-downloader@v1.11
-        with:
-          latest: true
-          fileName: ${{ matrix.asset }}
-          out-file-path: target/release
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Extract libcandle_video archive
-        run: tar -xzf ../target/release/${{ matrix.asset }} -C ../target/release
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Rust cdylib
+        run: cargo build --release
+        working-directory: ${{ github.workspace }}
 
       - name: Setup Go
         uses: actions/setup-go@v5

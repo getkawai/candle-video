@@ -2,13 +2,13 @@ name: Release Native Libraries
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Optional tag override (example: v0.1.1)"
-        required: false
+        description: "Tag to publish (example: v0.1.1)"
+        required: true
         type: string
 
 permissions:
@@ -74,7 +74,7 @@ jobs:
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || format('auto-{0}-{1}', github.run_number, github.sha) }}
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          name: ${{ format('Auto Release {0}', github.sha) }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
           files: dist/*

@@ -20,6 +20,8 @@ Prebuilt binaries are also published in GitHub Releases:
 - `libcandle_video-linux-amd64.tar.gz`
 - `libcandle_video-windows-amd64.tar.gz`
 
+Production releases are published from Git tags (`v*`) via GitHub Actions.
+
 You can override path with env var:
 
 ```bash

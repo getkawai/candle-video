@@ -72,6 +72,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go/go.mod
+          cache: false
 
       - name: Check formatting
         if: ${{ matrix.os != 'windows-latest' }}

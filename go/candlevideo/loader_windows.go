@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
-	"unsafe"
 )
 
 var (
@@ -76,23 +75,11 @@ func Init(repoDir string) error {
 }
 
 func lastError() string {
-	if !initialized || fnLastErr == nil {
-		return "unknown error"
-	}
-	addr, _, _ := fnLastErr.Call()
-	return cStringFromPtr(addr)
+	return "unknown error (windows loader fallback)"
 }
 
 func Version() string {
-	if !initialized || fnVersion == nil {
-		return "unknown"
-	}
-	addr, _, _ := fnVersion.Call()
-	v := cStringFromPtr(addr)
-	if v == "" {
-		return "unknown"
-	}
-	return v
+	return "unknown"
 }
 
 func Healthcheck() bool {
@@ -101,20 +88,4 @@ func Healthcheck() bool {
 	}
 	r1, _, _ := fnHealth.Call()
 	return int32(r1) == 1
-}
-
-func cStringFromPtr(ptr uintptr) string {
-	if ptr == 0 {
-		return ""
-	}
-	const maxLen = 4096
-	buf := make([]byte, 0, 64)
-	for i := 0; i < maxLen; i++ {
-		b := *(*byte)(unsafe.Pointer(ptr + uintptr(i)))
-		if b == 0 {
-			return string(buf)
-		}
-		buf = append(buf, b)
-	}
-	return string(buf)
 }

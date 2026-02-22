@@ -27,12 +27,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"unsafe"
 )
 
 var (
 	initialized bool
 	dlHandle    unsafe.Pointer
+	initMu      sync.Mutex
 
 	fnGenerate unsafe.Pointer
 	fnHealth   unsafe.Pointer
@@ -51,6 +53,9 @@ func defaultLibPath(repoDir string) string {
 }
 
 func Init(repoDir string) error {
+	initMu.Lock()
+	defer initMu.Unlock()
+
 	if initialized {
 		return nil
 	}

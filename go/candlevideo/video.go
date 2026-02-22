@@ -34,6 +34,10 @@ func Generate(ctx context.Context, repoDir string, opts GenerateOptions) error {
 		return fmt.Errorf("marshal options: %w", err)
 	}
 
+	return generateFromJSONPayload(payload)
+}
+
+func generateFromJSONPayload(payload []byte) error {
 	cCfg := C.CString(string(payload))
 	defer C.free(unsafe.Pointer(cCfg))
 

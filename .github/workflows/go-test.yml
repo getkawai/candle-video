@@ -19,10 +19,14 @@ on:
       - ".github/workflows/go-test.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test-go:
     name: test-go (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -91,6 +95,14 @@ jobs:
 
       - name: Run go vet
         run: go vet ./...
+
+      - name: Install govulncheck
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: govulncheck ./...
 
       - name: Run race test (ubuntu only)
         if: ${{ matrix.os == 'ubuntu-latest' }}
